@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convenience launcher for the FilamentBox logger.
+"""3D Printer Filament Storage Environment Monitor.
 
 This wrapper calls `filamentbox.main:main()` so you can run:
 

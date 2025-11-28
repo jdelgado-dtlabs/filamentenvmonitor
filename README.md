@@ -1,4 +1,4 @@
-# FilamentControl / FilamentBox Environment Data Logger
+# 3D Printer Filament Storage Environment Monitor
 
 A Python 3.13 application for collecting BME280 environmental data (temperature/humidity) and writing measurements to InfluxDB with durable batching, retry backoff, and recovery of unsent batches.
 
