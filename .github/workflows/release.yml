@@ -20,10 +20,12 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # Install dev dependencies first (includes test framework)
+          # Install dev dependencies (includes test framework, linters, type checkers)
           python -m pip install -r requirements-dev.txt
-          # Install runtime dependencies, allow failures for hardware-specific packages
-          python -m pip install -r requirements.txt || true
+          # Install core runtime dependencies (InfluxDB client, PyYAML, etc.)
+          python -m pip install influxdb PyYAML python-dateutil requests python-dotenv
+          # Attempt hardware packages (will fail in CI but that's OK)
+          python -m pip install adafruit-circuitpython-bme280 adafruit-circuitpython-dht || true
 
       - name: Ruff lint
         run: ruff check .
