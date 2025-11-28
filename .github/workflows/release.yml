@@ -20,8 +20,10 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+          # Install dev dependencies first (includes test framework)
+          python -m pip install -r requirements-dev.txt
+          # Install runtime dependencies, allow failures for hardware-specific packages
+          python -m pip install -r requirements.txt || true
 
       - name: Ruff lint
         run: ruff check .
