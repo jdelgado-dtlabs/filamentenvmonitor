@@ -115,7 +115,9 @@ sudo journalctl -u filamentbox.service -f
 # Copy service file to systemd directory
 sudo cp filamentbox.service /etc/systemd/system/
 
-# Edit the service file if needed (adjust User, Group, WorkingDirectory)
+# Edit the service file if needed (adjust WorkingDirectory, environment)
+# Note: The unit is configured to run as root (`User=root`, `Group=root`).
+# This is required for GPIO access on some devices and for managing files under `/opt/filamentcontrol`.
 sudo nano /etc/systemd/system/filamentbox.service
 
 # Reload systemd and enable the service
