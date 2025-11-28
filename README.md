@@ -74,10 +74,32 @@ DATA_COLLECTION_TAGS={"location": "filamentbox", "device": "pi-zero"}
 Tags must be valid JSON.
 
 ## Running the Application
+
+### Interactive Mode
 ```bash
 source filamentcontrol/bin/activate
 python -m filamentbox.main           # Normal run
 python -m filamentbox.main --debug   # Enable verbose debug logging
+```
+
+### As a systemd Service
+```bash
+# Copy service file to systemd directory
+sudo cp filamentbox.service /etc/systemd/system/
+
+# Edit the service file if needed (adjust User, Group, WorkingDirectory)
+sudo nano /etc/systemd/system/filamentbox.service
+
+# Reload systemd and enable the service
+sudo systemctl daemon-reload
+sudo systemctl enable filamentbox.service
+sudo systemctl start filamentbox.service
+
+# Check service status
+sudo systemctl status filamentbox.service
+
+# View logs
+sudo journalctl -u filamentbox.service -f
 ```
 
 ### Debug Mode
