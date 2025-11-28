@@ -83,6 +83,20 @@ python -m filamentbox.main --debug   # Enable verbose debug logging
 ```
 
 ### As a systemd Service
+
+#### Quick Install
+```bash
+# Run the installation script
+sudo ./install_service.sh
+
+# Start the service
+sudo systemctl start filamentbox.service
+
+# View logs
+sudo journalctl -u filamentbox.service -f
+```
+
+#### Manual Install
 ```bash
 # Copy service file to systemd directory
 sudo cp filamentbox.service /etc/systemd/system/
