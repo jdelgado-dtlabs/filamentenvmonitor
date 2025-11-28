@@ -211,8 +211,8 @@ GitHub Actions workflow (`.github/workflows/ci.yml`) runs ruff, mypy, and pytest
 across Python 3.11, 3.12, and 3.13 on Ubuntu (Linux), matching Raspberry Pi targets.
 
 <!-- Replace OWNER/REPO with your GitHub org/repo -->
-![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)
-![Release](https://github.com/OWNER/REPO/actions/workflows/release.yml/badge.svg)
+![CI](https://github.com/jdelgado-dtlabs/filamentenvmonitor/actions/workflows/ci.yml/badge.svg)
+![Release](https://github.com/jdelgado-dtlabs/filamentenvmonitor/actions/workflows/release.yml/badge.svg)
 
 ## Releases
 - Tag a commit using `vX.Y.Z` (e.g., `v0.1.0`).
