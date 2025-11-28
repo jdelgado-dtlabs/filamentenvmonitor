@@ -1,5 +1,9 @@
 # 3D Printer Filament Storage Environment Monitor
 
+<p align="center">
+  <img src="images/filament.jpeg" alt="Filament Storage Environment" width="600" />
+</p>
+
 ![CI](https://github.com/jdelgado-dtlabs/filamentenvmonitor/actions/workflows/ci.yml/badge.svg)
 ![Release](https://github.com/jdelgado-dtlabs/filamentenvmonitor/actions/workflows/release.yml/badge.svg)
 [![Latest Release](https://img.shields.io/github/v/release/jdelgado-dtlabs/filamentenvmonitor?label=latest%20release)](https://github.com/jdelgado-dtlabs/filamentenvmonitor/releases/latest)
