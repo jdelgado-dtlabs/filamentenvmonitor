@@ -213,6 +213,9 @@ across Python 3.11, 3.12, and 3.13 on Ubuntu (Linux), matching Raspberry Pi targ
 <!-- Replace OWNER/REPO with your GitHub org/repo -->
 ![CI](https://github.com/jdelgado-dtlabs/filamentenvmonitor/actions/workflows/ci.yml/badge.svg)
 ![Release](https://github.com/jdelgado-dtlabs/filamentenvmonitor/actions/workflows/release.yml/badge.svg)
+[
+![Latest Release](https://img.shields.io/github/v/release/jdelgado-dtlabs/filamentenvmonitor?label=latest%20release)
+](https://github.com/jdelgado-dtlabs/filamentenvmonitor/releases/latest)
 
 ## Releases
 - Tag a commit using `vX.Y.Z` (e.g., `v0.1.0`).
