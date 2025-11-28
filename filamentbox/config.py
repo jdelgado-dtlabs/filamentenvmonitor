@@ -1,0 +1,156 @@
+"""Configuration loader for FilamentBox.
+
+Provides YAML + environment variable merged configuration with helper access
+via `get`. Environment variables override sensitive and dynamic values.
+"""
+
+import json
+import logging
+import os
+from typing import Any, Optional
+
+import yaml
+from dotenv import load_dotenv
+
+
+def _find_config_file() -> Optional[str]:
+    """Return path to `config.yaml` in current directory if present, else None."""
+    # Check current directory only
+    if os.path.isfile("config.yaml"):
+        return "config.yaml"
+    return None
+
+
+def _find_env_file() -> Optional[str]:
+    """Return path to `.env` in current or parent directory if present, else None."""
+    # Check current directory first
+    if os.path.isfile(".env"):
+        return ".env"
+    # Check parent directory (if running from filamentbox subdir)
+    if os.path.isfile("../.env"):
+        return "../.env"
+    return None
+
+
+def _load_env_file() -> None:
+    """Load environment variables from a discovered .env file (best-effort)."""
+    env_file = _find_env_file()
+    if env_file:
+        try:
+            load_dotenv(env_file)
+            logging.debug(f"Loaded environment from {env_file}")
+        except Exception as e:
+            logging.warning(f"Failed to load {env_file}: {e}")
+
+
+def load_config(config_path: Optional[str] = None) -> dict[str, Any]:
+    """Load configuration from required YAML file, merging environment overrides.
+
+    The YAML file must exist in the application directory (./config.yaml).
+
+    Sensitive credentials (DB password, username) are loaded from environment
+    variables, which can be set via a .env file or system environment.
+
+    Args:
+            config_path: Optional path to config.yaml. If not provided, searches application directory.
+
+    Returns:
+            Dict with config from YAML file, with env vars overriding sensitive fields.
+
+    Raises:
+            FileNotFoundError: If config.yaml is not found.
+            ValueError: If YAML file is invalid or missing required fields.
+    """
+    # Load .env file first (if available) so environment variables are populated
+    _load_env_file()
+
+    if config_path is None:
+        config_path = _find_config_file()
+
+    if not config_path or not os.path.isfile(config_path):
+        raise FileNotFoundError("config.yaml is required in the application directory")
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+        if not isinstance(config, dict):
+            raise ValueError("config.yaml must contain a YAML dictionary")
+        # Validate required fields
+        if "influxdb" not in config or not isinstance(config["influxdb"], dict):
+            raise ValueError(
+                "config.yaml must contain an 'influxdb' mapping with connection settings"
+            )
+        if not config["influxdb"].get("database"):
+            raise ValueError(
+                "config.yaml must specify 'influxdb.database' (the target InfluxDB database name)"
+            )
+        logging.info(f"Loaded configuration from {config_path}")
+    except yaml.YAMLError as e:
+        raise ValueError(f"Invalid YAML in {config_path}: {e}")
+    except Exception as e:
+        raise ValueError(f"Failed to load config from {config_path}: {e}")
+
+    # Override sensitive credentials from environment variables
+    # This ensures secrets are never stored in YAML or code
+    if os.environ.get("INFLUXDB_USERNAME"):
+        if "influxdb" not in config:
+            config["influxdb"] = {}
+        config["influxdb"]["username"] = os.environ["INFLUXDB_USERNAME"]
+    if os.environ.get("INFLUXDB_PASSWORD"):
+        if "influxdb" not in config:
+            config["influxdb"] = {}
+        config["influxdb"]["password"] = os.environ["INFLUXDB_PASSWORD"]
+    if os.environ.get("INFLUXDB_HOST"):
+        if "influxdb" not in config:
+            config["influxdb"] = {}
+        config["influxdb"]["host"] = os.environ["INFLUXDB_HOST"]
+    if os.environ.get("INFLUXDB_PORT"):
+        if "influxdb" not in config:
+            config["influxdb"] = {}
+        try:
+            config["influxdb"]["port"] = int(os.environ["INFLUXDB_PORT"])
+        except ValueError:
+            logging.warning(f"Invalid INFLUXDB_PORT value: {os.environ['INFLUXDB_PORT']}")
+
+    # Override data collection settings from environment variables
+    if os.environ.get("DATA_COLLECTION_MEASUREMENT"):
+        if "data_collection" not in config:
+            config["data_collection"] = {}
+        config["data_collection"]["measurement"] = os.environ["DATA_COLLECTION_MEASUREMENT"]
+
+    # Parse DATA_COLLECTION_TAGS from environment (JSON format)
+    if os.environ.get("DATA_COLLECTION_TAGS"):
+        if "data_collection" not in config:
+            config["data_collection"] = {}
+        try:
+            tags_json = os.environ["DATA_COLLECTION_TAGS"]
+            config["data_collection"]["tags"] = json.loads(tags_json)
+            logging.debug(
+                f"Loaded tags from DATA_COLLECTION_TAGS: {config['data_collection']['tags']}"
+            )
+        except json.JSONDecodeError as e:
+            logging.warning(f"Failed to parse DATA_COLLECTION_TAGS as JSON: {e}")
+
+    return config
+
+
+# Global config instance (loaded on import)
+config = load_config()
+
+
+def get(key_path: str, default: Any = None) -> Any:
+    """Return config value at dot-separated path or `default` if missing.
+
+    Examples:
+            get('influxdb.host') -> '192.168.99.2'
+            get('queue.max_size') -> 10000
+            get('nonexistent', 'fallback') -> 'fallback'
+    """
+    keys = key_path.split(".")
+    val: Any = config
+    for key in keys:
+        if isinstance(val, dict) and key in val:
+            val = val[key]
+        else:
+            return default
+    return val

@@ -1,0 +1,7 @@
+# Development dependencies
+# Include runtime requirements so a single install sets up everything
+-r requirements.txt
+pre-commit>=4.0.0
+ruff>=0.7.0
+mypy>=1.10.0
+types-PyYAML>=6.0.12.20240808

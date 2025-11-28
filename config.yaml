@@ -1,0 +1,56 @@
+# FilamentBox Configuration
+#
+# Sensitive credentials (username, password) should be set via environment variables:
+#   INFLUXDB_USERNAME
+#   INFLUXDB_PASSWORD
+#   INFLUXDB_HOST (optional, overrides below)
+#   INFLUXDB_PORT (optional, overrides below)
+#
+# These can be set in a .env file (see .env.example) or via shell environment.
+
+influxdb:
+  host: "influxdb"
+  port: 8086
+  username: "admin"  # Can be overridden by INFLUXDB_USERNAME env var
+  password: "CHANGE_ME"  # MUST be set via INFLUXDB_PASSWORD env var in production
+  database: "influx"     # Name of the InfluxDB database to write into
+  
+data_collection:
+  # Interval between sensor readings (seconds)
+  read_interval: 0.25
+  # Batch size threshold for writes
+  batch_size: 5000
+  # Time threshold for writes (seconds)
+  flush_interval: 2
+  # Measurement name to write into InfluxDB
+  measurement: "environment"
+  # Tags are optional. If omitted or empty, measurements are written without tags.
+  # Example (uncomment to use):
+  #   tags:
+  #     location: "filamentbox"
+  #     device: "pi-zero-1"
+  # Tags can also be set via environment variables if needed.
+
+queue:
+  # Maximum number of items in the in-memory write queue
+  max_size: 10000
+
+retry:
+  # Base backoff delay (seconds) for exponential backoff
+  backoff_base: 1
+  # Maximum backoff delay (seconds)
+  backoff_max: 300
+  # Number of consecutive failures before alerting
+  alert_threshold: 5
+  # Persist unsent batches when alert threshold is reached
+  persist_on_alert: true
+
+persistence:
+  # Directory/database path for persisted batches
+  db_path: "unsent_batches.db"
+  # Maximum number of batches to keep in persistence (oldest pruned)
+  max_batches: 50000
+
+sensor:
+  # Sea level pressure calibration (hPa)
+  sea_level_pressure: 1013.25
