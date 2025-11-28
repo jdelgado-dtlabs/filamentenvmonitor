@@ -25,26 +25,31 @@ def _init_sensor():
     sensor_type = get("sensor.type", "bme280").lower()
     _sensor_type = sensor_type
 
-    if sensor_type == "bme280":
-        import board
-        from adafruit_bme280 import basic as adafruit_bme280
+    try:
+        if sensor_type == "bme280":
+            import board
+            from adafruit_bme280 import basic as adafruit_bme280
 
-        i2c = board.I2C()
-        _sensor = adafruit_bme280.Adafruit_BME280_I2C(i2c)
-        _sensor.sea_level_pressure = get("sensor.sea_level_pressure")
-        logging.info("Initialized BME280 sensor on I2C")
+            i2c = board.I2C()
+            _sensor = adafruit_bme280.Adafruit_BME280_I2C(i2c)
+            _sensor.sea_level_pressure = get("sensor.sea_level_pressure")
+            logging.info("Initialized BME280 sensor on I2C")
 
-    elif sensor_type == "dht22":
-        import board
-        import adafruit_dht
+        elif sensor_type == "dht22":
+            import board
+            import adafruit_dht
 
-        pin_number = get("sensor.gpio_pin", 4)
-        pin = getattr(board, f"D{pin_number}")
-        _sensor = adafruit_dht.DHT22(pin, use_pulseio=False)
-        logging.info(f"Initialized DHT22 sensor on GPIO pin {pin_number}")
+            pin_number = get("sensor.gpio_pin", 4)
+            pin = getattr(board, f"D{pin_number}")
+            _sensor = adafruit_dht.DHT22(pin, use_pulseio=False)
+            logging.info(f"Initialized DHT22 sensor on GPIO pin {pin_number}")
 
-    else:
-        raise ValueError(f"Unsupported sensor type: {sensor_type}")
+        else:
+            raise ValueError(f"Unsupported sensor type: {sensor_type}")
+    except (ImportError, NotImplementedError, RuntimeError) as e:
+        # Handle missing hardware libraries or unavailable hardware in CI/test environments
+        logging.warning(f"Sensor initialization failed (hardware may not be available): {e}")
+        _sensor = None
 
 
 def read_sensor_data() -> Tuple[Optional[float], Optional[float]]:
