@@ -1,19 +1,26 @@
 # 3D Printer Filament Storage Environment Monitor
 
-A Python 3.13 application for collecting BME280 environmental data (temperature/humidity) and writing measurements to InfluxDB with durable batching, retry backoff, and recovery of unsent batches.
+![CI](https://github.com/jdelgado-dtlabs/filamentenvmonitor/actions/workflows/ci.yml/badge.svg)
+![Release](https://github.com/jdelgado-dtlabs/filamentenvmonitor/actions/workflows/release.yml/badge.svg)
+[
+![Latest Release](https://img.shields.io/github/v/release/jdelgado-dtlabs/filamentenvmonitor?label=latest%20release)
+](https://github.com/jdelgado-dtlabs/filamentenvmonitor/releases/latest)
+
+A Python 3.13 application for monitoring temperature and humidity in 3D printer filament storage environments. Supports multiple sensor types (BME280, DHT22) with robust data collection, batching, and InfluxDB integration.
 
 ## Features
-- Periodic BME280 sensor reads (configurable interval)
-- Batched writes to InfluxDB (size or time flush triggers)
-- Automatic database creation on startup (best-effort)
-- Exponential backoff with jitter on write failures
-- Alert threshold with optional persistence of failed batches
-- SQLite persistence of unsent batches across restarts
-- Startup recovery flushing persisted batches
-- Queue overflow handling (drops oldest to keep fresh data)
-- Structured debug output (batch preview before write)
-- Configurable measurement name and tags (YAML or environment)
-- Clean separation of concerns (config, sensor, writer, persistence, logging)
+- **Multi-sensor support**: BME280 (I2C) and DHT22 (GPIO) with automatic detection
+- **Reliable data collection**: Configurable intervals with graceful error handling
+- **Batched writes**: Optimized InfluxDB writes with size and time-based flush triggers
+- **Automatic recovery**: SQLite persistence of unsent batches across restarts
+- **Smart retry logic**: Exponential backoff with jitter on write failures
+- **Alert system**: Configurable failure threshold with optional persistence
+- **Queue management**: Overflow handling that prioritizes fresh data
+- **Flexible configuration**: YAML-based with environment variable overrides
+- **Debug visibility**: Structured logging with batch preview before writes
+- **Production ready**: Systemd service integration with automated installer
+- **Code quality**: Full type hints, pre-commit hooks, automated CI/CD
+- **Remote InfluxDB**: Designed for network-based database deployments
 
 ## Directory Layout
 ```
@@ -191,14 +198,9 @@ enqueue_data_point(point)
 | Tags missing | Incorrect JSON in env variable | Ensure `DATA_COLLECTION_TAGS` is valid JSON |
 | 400 errors | Invalid field types or line protocol | Ensure numeric fields only; no empty strings |
 | Queue drops data | Queue size too small | Increase `queue.max_size` |
-
-## Extensibility Ideas
-- Add metrics export (Prometheus) for internal health.
-- Implement structured logging (JSON format) for ingestion pipelines.
-- Add additional sensors (pressure, VOC) with tagging.
-
-## License
-Internal / Proprietary (add license terms if needed).
+| Sensor read errors | Wrong sensor type configured | Verify `sensor.type` matches your hardware (bme280/dht22) |
+| DHT22 timeouts | GPIO pin misconfiguration | Check `sensor.gpio_pin` matches wiring |
+| Service won't start | Config file missing | Ensure `config.yaml` exists in `/opt/filamentcontrol` |
 
 ## Quick Reference Commands
 ```bash
@@ -235,32 +237,100 @@ ruff format --check .
 mypy filamentbox
 pre-commit run --all-files
 pytest -q
+
+# Service management
+sudo systemctl status filamentbox.service
+sudo systemctl restart filamentbox.service
+sudo journalctl -u filamentbox.service -f --since "10 minutes ago"
+```
+
+## Project Structure & Architecture
+
+### Module Responsibilities
+- `main.py` - Application entry point, thread orchestration, data collection loop
+- `sensor.py` - Multi-sensor abstraction (BME280/DHT22), lazy initialization, error handling
+- `influx_writer.py` - Batched InfluxDB writes, retry logic, alerting, queue management
+- `persistence.py` - SQLite-based batch recovery, pruning, error resilience
+- `config.py` - YAML + environment variable configuration with lazy loading
+- `logging_config.py` - Dual-stream logging (stdout/stderr split)
+
+### Configuration Hierarchy
+1. `config.yaml` - Base configuration (checked into version control)
+2. `.env` - Local overrides for credentials and host-specific settings (gitignored)
+3. Environment variables - Runtime overrides (highest priority)
+
+### Data Flow
+```
+Sensor → Read Loop → Validation → Queue → Batch Writer → InfluxDB
+                                     ↓
+                              Persistence Layer (on failures)
+                                     ↓
+                              Recovery on Restart
 ```
 
 ## Development
-- Dev dependencies live in `requirements-dev.txt` (includes `-r requirements.txt`).
-- Hooks: `pre-commit install` to enable automatic lint and type checks on commit.
-- Configuration lives in `pyproject.toml` for ruff/mypy.
-- If Git shows a "dubious ownership" error on this path, mark it safe:
-  `git config --global --add safe.directory /opt/filamentcontrol`.
 
-## CI
-GitHub Actions workflow (`.github/workflows/ci.yml`) runs ruff, mypy, and pytest on pushes/PRs
-across Python 3.11, 3.12, and 3.13 on Ubuntu (Linux), matching Raspberry Pi targets.
+### Setup
+```bash
+# Install development dependencies
+pip install -r requirements-dev.txt
 
-<!-- Replace OWNER/REPO with your GitHub org/repo -->
-![CI](https://github.com/jdelgado-dtlabs/filamentenvmonitor/actions/workflows/ci.yml/badge.svg)
-![Release](https://github.com/jdelgado-dtlabs/filamentenvmonitor/actions/workflows/release.yml/badge.svg)
-[
-![Latest Release](https://img.shields.io/github/v/release/jdelgado-dtlabs/filamentenvmonitor?label=latest%20release)
-](https://github.com/jdelgado-dtlabs/filamentenvmonitor/releases/latest)
+# Install pre-commit hooks (optional but recommended)
+pre-commit install
+```
 
-## Releases
-- Tag a commit using `vX.Y.Z` (e.g., `v0.1.0`).
-- The release workflow (`.github/workflows/release.yml`) runs lint, types, and tests, then
-  creates a GitHub Release with autogenerated notes and attaches a source zip.
- - A Release Drafter workflow maintains a draft release with categorized notes; labels influence
-   sections in the notes. See `.github/release-drafter.yml` for categories and label mapping.
+### Workflow
+- Dev dependencies live in `requirements-dev.txt` (includes `-r requirements.txt`)
+- Hooks: `pre-commit install` enables automatic lint and type checks on commit
+- Configuration lives in `pyproject.toml` for ruff/mypy
+- If Git shows "dubious ownership" error: `git config --global --add safe.directory /opt/filamentcontrol`
 
-## Support
+### Running Tests
+```bash
+# Run all tests
+pytest
+
+# Quick test run
+pytest -q
+
+# With coverage
+pytest --cov=filamentbox
+```
+
+## CI/CD
+
+### Continuous Integration
+GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push/PR:
+- Linting (Ruff)
+- Type checking (Mypy)
+- Unit tests (pytest)
+- Python versions: 3.11, 3.12, 3.13
+- Platform: Ubuntu (matches Raspberry Pi target)
+
+### Releases
+1. Tag a commit: `git tag v0.X.Y && git push --tags`
+2. Release workflow (`.github/workflows/release.yml`) automatically:
+   - Runs full CI suite
+   - Creates GitHub Release with autogenerated notes
+   - Attaches source archive
+3. Release Drafter maintains draft releases with categorized notes (see `.github/release-drafter.yml`)
+
+## Version History
+
+### v0.2.0 - Service Integration & Multi-Sensor Support
+- Added systemd service file and automated installer
+- DHT22 sensor support alongside BME280
+- Removed local InfluxDB dependency (supports remote instances)
+- Portable shebang for cross-environment compatibility
+- CI enhancements for hardware dependency handling
+
+### v0.1.0 - Initial Release
+- BME280 sensor data collection
+- InfluxDB batch writing with retry/backoff
+- Configuration via YAML and environment
+- SQLite-based persistence and recovery
+- Comprehensive testing and CI/CD
+
+## Support & Contributing
 For enhancements or issues, document reproduction steps, debug output, and configuration diffs.
+See `.github/workflows/` for CI configuration and `.pre-commit-config.yaml` for code quality standards.
