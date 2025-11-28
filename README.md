@@ -322,6 +322,21 @@ GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push/PR:
    - Attaches source archive
 3. Release Drafter maintains draft releases with categorized notes (see `.github/release-drafter.yml`)
 
+<!-- Version History moved to end of document -->
+
+## Security Considerations
+- The systemd unit runs as `root` to ensure GPIO access and proper file management under `/opt/filamentcontrol`. If your environment allows, consider using a dedicated service user with appropriate group memberships (e.g., `gpio`, `i2c`) and permissions.
+- Hardening flags enabled:
+  - `ProtectSystem=strict` limits write access to system directories.
+  - `PrivateTmp=true` isolates the service's temporary files.
+  - `ReadWritePaths=/opt/filamentcontrol` grants explicit write access only where needed.
+- Review and adjust `WorkingDirectory`, environment PATH, and writable paths to match your deployment. Ensure `config.yaml` and runtime files reside in permitted locations.
+
+## Support & Contributing
+- If something goes wrong or you want a new feature, please open an Issue on GitHub: https://github.com/jdelgado-dtlabs/filamentenvmonitor/issues
+- When filing an issue, include reproduction steps, relevant logs (use `--debug` if possible), environment details (OS, Python version), and any configuration diffs.
+- See `.github/workflows/` for CI configuration and `.pre-commit-config.yaml` for code quality standards.
+
 ## Version History
 
 ### v1.0.0 - Stable Major Release
@@ -347,13 +362,3 @@ GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push/PR:
 - SQLite-based persistence and recovery
 - Comprehensive testing and CI/CD
 
-## Support & Contributing
-- If something goes wrong or you want a new feature, please open an Issue on GitHub: https://github.com/jdelgado-dtlabs/filamentenvmonitor/issues
-- When filing an issue, include reproduction steps, relevant logs (use `--debug` if possible), environment details (OS, Python version), and any configuration diffs.
-- See `.github/workflows/` for CI configuration and `.pre-commit-config.yaml` for code quality standards.
-
-## Security Considerations
-  - `ProtectSystem=strict` limits write access to system directories.
-  - `PrivateTmp=true` isolates the service's temporary files.
-  - `ReadWritePaths=/opt/filamentcontrol` grants explicit write access only where needed.
- 
