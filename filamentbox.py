@@ -1,4 +1,4 @@
-#!/opt/filamentcontrol/filamentcontrol/bin/python
+#!/usr/bin/env python3
 """FilamentBox Environment Data Logger - Main Entry Point.
 
 This is a thin wrapper around the filamentbox package. Run this script directly
