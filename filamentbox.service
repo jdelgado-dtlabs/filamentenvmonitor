@@ -1,6 +1,6 @@
 [Unit]
 Description=FilamentBox Environment Data Logger
-After=network-online.target influxdb.service
+After=network-online.target
 Wants=network-online.target
 
 [Service]
@@ -9,7 +9,7 @@ User=pi
 Group=pi
 WorkingDirectory=/opt/filamentcontrol
 Environment="PATH=/opt/filamentcontrol/filamentcontrol/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/opt/filamentcontrol/filamentcontrol/bin/python -m filamentbox.main
+ExecStart=/opt/filamentcontrol/run_filamentbox.py
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
