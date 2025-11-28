@@ -168,6 +168,10 @@ Internal / Proprietary (add license terms if needed).
 python -m filamentbox.main
 python -m filamentbox.main --debug
 
+# Or use the convenience launcher script
+python run_filamentbox.py
+python run_filamentbox.py --debug
+
 # Set environment overrides (example)
 export INFLUXDB_HOST=192.168.1.25
 export DATA_COLLECTION_TAGS='{"location": "rack-1"}'
@@ -187,11 +191,12 @@ enqueue_data_point({
 })
 PY
 
-# Development: run linters and type checks
+# Development: run linters, types, and tests
 ruff check .
 ruff format --check .
 mypy filamentbox
 pre-commit run --all-files
+pytest -q
 ```
 
 ## Development
@@ -200,6 +205,9 @@ pre-commit run --all-files
 - Configuration lives in `pyproject.toml` for ruff/mypy.
 - If Git shows a "dubious ownership" error on this path, mark it safe:
   `git config --global --add safe.directory /opt/filamentcontrol`.
+
+## CI
+GitHub Actions workflow (`.github/workflows/ci.yml`) runs ruff, mypy, and pytest on pushes/PRs.
 
 ## Support
 For enhancements or issues, document reproduction steps, debug output, and configuration diffs.

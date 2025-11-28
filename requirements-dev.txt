@@ -5,3 +5,4 @@ pre-commit>=4.0.0
 ruff>=0.7.0
 mypy>=1.10.0
 types-PyYAML>=6.0.12.20240808
+pytest>=8.3.0
