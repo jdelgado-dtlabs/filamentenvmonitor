@@ -322,6 +322,15 @@ GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push/PR:
 - Portable shebang for cross-environment compatibility
 - CI enhancements for hardware dependency handling
 
+### v1.0.0 - Stable Major Release
+- Public repository with working badges (CI, Release, Latest).
+- Robust, production-ready monitoring with multi-sensor support (BME280, DHT22).
+- Systemd service integration with automated installer.
+- Reliable batching, retry with exponential backoff + jitter, and SQLite persistence.
+- Comprehensive configuration via YAML with environment overrides; lazy config loading.
+- Full code quality pipeline: Ruff lint/format, Mypy typing, pytest tests, pre-commit hooks.
+- CI/CD on Python 3.11–3.13; automated GitHub Releases with source archives.
+
 ### v0.1.0 - Initial Release
 - BME280 sensor data collection
 - InfluxDB batch writing with retry/backoff
