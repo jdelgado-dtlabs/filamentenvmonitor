@@ -6,6 +6,13 @@
 
 A Python 3.13 application for monitoring temperature and humidity in 3D printer filament storage environments. Supports multiple sensor types (BME280, DHT22) with robust data collection, batching, and InfluxDB integration.
 
+## Highlights (v1.0.0)
+- Production-ready service with automated systemd installer
+- Multi-sensor support: BME280 (I2C) and DHT22 (GPIO)
+- Reliable batching, exponential backoff with jitter, SQLite persistence
+- YAML config with env overrides and lazy loading
+- Full CI/CD: Ruff, Mypy, pytest on Python 3.11–3.13; automated Releases
+
 ## Features
 - **Multi-sensor support**: BME280 (I2C) and DHT22 (GPIO) with automatic detection
 - **Reliable data collection**: Configurable intervals with graceful error handling
