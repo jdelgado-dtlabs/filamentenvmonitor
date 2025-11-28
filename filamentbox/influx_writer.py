@@ -103,7 +103,7 @@ def influxdb_writer(stop_event: Optional[threading.Event] = None) -> None:
                 try:
                     logging.debug(f"Batch ready for write ({len(batch)} points):")
                     for i, point in enumerate(batch):
-                        logging.debug(f"  Point {i+1}: {json.dumps(point)}")
+                        logging.debug(f"  Point {i + 1}: {json.dumps(point)}")
                     client.write_points(batch)
                     logging.debug(f"Wrote {len(batch)} points to InfluxDB.")
                     batch.clear()
