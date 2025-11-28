@@ -134,8 +134,15 @@ def load_config(config_path: Optional[str] = None) -> dict[str, Any]:
     return config
 
 
-# Global config instance (loaded on import)
-config = load_config()
+# Global config instance (loaded on first use, not at import)
+config: Optional[dict[str, Any]] = None
+
+
+def _ensure_config_loaded():
+    """Load config if not already loaded."""
+    global config
+    if config is None:
+        config = load_config()
 
 
 def get(key_path: str, default: Any = None) -> Any:
@@ -146,6 +153,7 @@ def get(key_path: str, default: Any = None) -> Any:
             get('queue.max_size') -> 10000
             get('nonexistent', 'fallback') -> 'fallback'
     """
+    _ensure_config_loaded()
     keys = key_path.split(".")
     val: Any = config
     for key in keys:
