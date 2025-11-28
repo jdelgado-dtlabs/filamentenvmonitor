@@ -208,7 +208,11 @@ pytest -q
 
 ## CI
 GitHub Actions workflow (`.github/workflows/ci.yml`) runs ruff, mypy, and pytest on pushes/PRs
-across Python 3.11, 3.12, and 3.13 and OSes: Ubuntu, macOS, and Windows.
+across Python 3.11, 3.12, and 3.13 on Ubuntu (Linux), matching Raspberry Pi targets.
+
+<!-- Replace OWNER/REPO with your GitHub org/repo -->
+![CI](https://github.com/OWNER/REPO/actions/workflows/ci.yml/badge.svg)
+![Release](https://github.com/OWNER/REPO/actions/workflows/release.yml/badge.svg)
 
 ## Releases
 - Tag a commit using `vX.Y.Z` (e.g., `v0.1.0`).

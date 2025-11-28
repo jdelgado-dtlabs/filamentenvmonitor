@@ -1,0 +1,23 @@
+# Syncable labels for this repository
+# Use with .github/workflows/labels.yml to apply on push
+- name: enhancement
+  color: 84b6eb
+  description: New feature or request
+- name: bug
+  color: d73a4a
+  description: Something isn't working
+- name: chore
+  color: cccccc
+  description: Maintenance tasks
+- name: refactor
+  color: fbca04
+  description: Code restructuring
+- name: tests
+  color: 04d1ff
+  description: Test-related changes
+- name: ci
+  color: 5319e7
+  description: CI/CD changes
+- name: documentation
+  color: 0075ca
+  description: Improvements or additions to documentation
