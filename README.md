@@ -348,5 +348,12 @@ GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push/PR:
 - Comprehensive testing and CI/CD
 
 ## Support & Contributing
+## Security Considerations
+- The systemd unit runs as `root` to ensure GPIO access and proper file management under `/opt/filamentcontrol`. If your environment allows, consider using a dedicated service user with appropriate group memberships (e.g., `gpio`, `i2c`) and permissions.
+- Hardening flags enabled:
+  - `ProtectSystem=strict` limits write access to system directories.
+  - `PrivateTmp=true` isolates the service's temporary files.
+  - `ReadWritePaths=/opt/filamentcontrol` grants explicit write access only where needed.
+- Review and adjust `WorkingDirectory`, environment PATH, and writable paths to match your deployment. Ensure `config.yaml` and runtime files reside in permitted locations.
 For enhancements or issues, document reproduction steps, debug output, and configuration diffs.
 See `.github/workflows/` for CI configuration and `.pre-commit-config.yaml` for code quality standards.
