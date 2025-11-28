@@ -1,26 +1,21 @@
-name: CI
+name: Release
 
 on:
   push:
-    branches: [ "**" ]
-  pull_request:
-    branches: [ "**" ]
+    tags:
+      - 'v*'
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: [ '3.11', '3.12', '3.13' ]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: '3.13'
 
       - name: Install dependencies
         run: |
@@ -31,11 +26,21 @@ jobs:
       - name: Ruff lint
         run: ruff check .
 
-      - name: Ruff format check
-        run: ruff format --check .
-
       - name: Mypy type check
         run: mypy --config-file pyproject.toml filamentbox
 
       - name: Run tests
         run: pytest -q
+
+      - name: Create source archive
+        run: |
+          git archive --format zip --output filamentcontrol-${{ github.ref_name }}.zip HEAD
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            filamentcontrol-${{ github.ref_name }}.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
