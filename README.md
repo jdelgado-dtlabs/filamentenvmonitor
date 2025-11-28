@@ -315,13 +315,6 @@ GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push/PR:
 
 ## Version History
 
-### v0.2.0 - Service Integration & Multi-Sensor Support
-- Added systemd service file and automated installer
-- DHT22 sensor support alongside BME280
-- Removed local InfluxDB dependency (supports remote instances)
-- Portable shebang for cross-environment compatibility
-- CI enhancements for hardware dependency handling
-
 ### v1.0.0 - Stable Major Release
 - Public repository with working badges (CI, Release, Latest).
 - Robust, production-ready monitoring with multi-sensor support (BME280, DHT22).
@@ -330,6 +323,13 @@ GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push/PR:
 - Comprehensive configuration via YAML with environment overrides; lazy config loading.
 - Full code quality pipeline: Ruff lint/format, Mypy typing, pytest tests, pre-commit hooks.
 - CI/CD on Python 3.11–3.13; automated GitHub Releases with source archives.
+
+### v0.2.0 - Service Integration & Multi-Sensor Support
+- Added systemd service file and automated installer
+- DHT22 sensor support alongside BME280
+- Removed local InfluxDB dependency (supports remote instances)
+- Portable shebang for cross-environment compatibility
+- CI enhancements for hardware dependency handling
 
 ### v0.1.0 - Initial Release
 - BME280 sensor data collection
