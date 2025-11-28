@@ -52,5 +52,10 @@ persistence:
   max_batches: 50000
 
 sensor:
-  # Sea level pressure calibration (hPa)
+  # Sensor type: "bme280" or "dht22"
+  type: "bme280"
+  # Sea level pressure calibration (hPa) - BME280 only
   sea_level_pressure: 1013.25
+  # GPIO pin number for DHT22 sensor (default: 4, corresponds to GPIO4/D4)
+  # Only used when type is "dht22"
+  gpio_pin: 4

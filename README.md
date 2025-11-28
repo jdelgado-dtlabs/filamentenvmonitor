@@ -34,7 +34,9 @@ unsent_batches.db (created at runtime if persistence used)
 ## Requirements
 - Python 3.13 (virtual environment recommended)
 - InfluxDB (tested with 1.x HTTP API)
-- BME280 sensor connected over I2C
+- Supported sensors:
+  - BME280 (I2C interface)
+  - DHT22 (GPIO pin, default GPIO4)
 
 ## Installation & Setup
 ```bash
@@ -59,7 +61,7 @@ Primary configuration lives in `config.yaml`. Environment variables override sen
 - `queue.max_size`
 - `retry.backoff_base`, `retry.backoff_max`, `retry.alert_threshold`, `retry.persist_on_alert`
 - `persistence.db_path`, `persistence.max_batches`
-- `sensor.sea_level_pressure`
+- `sensor.type` ("bme280" or "dht22"), `sensor.sea_level_pressure` (BME280 only), `sensor.gpio_pin` (DHT22 only)
 
 Environment overrides (via `.env` or shell):
 ```
