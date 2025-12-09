@@ -13,7 +13,7 @@ from .heating_control import start_heating_control, stop_heating_control, update
 from .influx_writer import enqueue_data_point, influxdb_writer, wait_for_queue_empty
 from .logging_config import configure_logging
 from .persistence import load_and_flush_persisted_batches
-from .sensor import convert_c_to_f, log_data, read_bme280_data
+from .sensor import convert_c_to_f, log_data, read_sensor_data
 
 
 def data_collection_cycle() -> None:
@@ -24,7 +24,7 @@ def data_collection_cycle() -> None:
     """
     read_interval = get("data_collection.read_interval")
     while True:
-        temperature_c, humidity = read_bme280_data()
+        temperature_c, humidity = read_sensor_data()
         temperature_f = convert_c_to_f(temperature_c) if temperature_c is not None else None
 
         # Constrain values to float types

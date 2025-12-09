@@ -88,15 +88,6 @@ def read_sensor_data() -> Tuple[Optional[float], Optional[float]]:
         return None, None
 
 
-# Backward compatibility alias
-def read_bme280_data() -> Tuple[Optional[float], Optional[float]]:
-    """Deprecated: Use read_sensor_data() instead.
-
-    Maintained for backward compatibility.
-    """
-    return read_sensor_data()
-
-
 def convert_c_to_f(temperature_c: float) -> float:
     """Convert Celsius value to Fahrenheit."""
     return temperature_c * (9 / 5) + 32

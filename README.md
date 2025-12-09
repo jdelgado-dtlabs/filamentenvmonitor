@@ -181,7 +181,7 @@ Write queue max size configurable (`queue.max_size`). When full:
 
 ## Available Python Entry Points
 - `filamentbox.main` — Main application with threads and recovery.
-- `filamentbox.sensor` — Sensor helpers (`read_bme280_data`, `convert_c_to_f`).
+- `filamentbox.sensor` — Sensor helpers (`read_sensor_data`, `convert_c_to_f`).
 - `filamentbox.influx_writer` — Writer thread utilities (`enqueue_data_point`, `register_alert_handler`, `wait_for_queue_empty`).
 - `filamentbox.persistence` — Batch persistence (`persist_batch`, `load_and_flush_persisted_batches`).
 - `filamentbox.config` — Configuration (`get`, `load_config`).

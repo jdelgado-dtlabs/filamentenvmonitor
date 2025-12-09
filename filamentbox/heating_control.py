@@ -121,8 +121,7 @@ def _heating_control_loop() -> None:
         return
 
     logger.info(
-        f"Heating control active: {min_temp}°C - {max_temp}°C "
-        f"(check interval: {check_interval}s)"
+        f"Heating control active: {min_temp}°C - {max_temp}°C (check interval: {check_interval}s)"
     )
 
     heater_state = False  # Track current state

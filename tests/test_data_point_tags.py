@@ -14,7 +14,7 @@ class TestDataPointTags(unittest.TestCase):
 
     @patch("filamentbox.main.get")
     @patch("filamentbox.main.enqueue_data_point")
-    @patch("filamentbox.main.read_bme280_data")
+    @patch("filamentbox.main.read_sensor_data")
     @patch("filamentbox.main.convert_c_to_f")
     @patch("filamentbox.main.log_data")
     @patch("filamentbox.main.time.sleep")
@@ -76,7 +76,7 @@ class TestDataPointTags(unittest.TestCase):
 
     @patch("filamentbox.main.get")
     @patch("filamentbox.main.enqueue_data_point")
-    @patch("filamentbox.main.read_bme280_data")
+    @patch("filamentbox.main.read_sensor_data")
     @patch("filamentbox.main.convert_c_to_f")
     @patch("filamentbox.main.log_data")
     @patch("filamentbox.main.time.sleep")
