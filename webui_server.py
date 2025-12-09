@@ -7,9 +7,9 @@ plus serves the React frontend.
 import logging
 import os
 from datetime import datetime
-from typing import Any, Dict, Tuple, Union
+from typing import Tuple, Union
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, Response, jsonify, request, send_from_directory
 from flask_cors import CORS
 
 from filamentbox.shared_state import (
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 @app.route("/api/sensor")
-def get_sensor() -> Dict[str, Any]:
+def get_sensor() -> Response:
     """Get current sensor readings.
 
     Returns:
@@ -50,7 +50,7 @@ def get_sensor() -> Dict[str, Any]:
 
 
 @app.route("/api/controls")
-def get_controls() -> Dict[str, Any]:
+def get_controls() -> Response:
     """Get current control states.
 
     Returns:
@@ -74,7 +74,7 @@ def get_controls() -> Dict[str, Any]:
 
 
 @app.route("/api/controls/heater", methods=["POST"])
-def control_heater() -> Union[Dict[str, Any], Tuple[Dict[str, Any], int]]:
+def control_heater() -> Union[Response, Tuple[Response, int]]:
     """Control heater state.
 
     Request body:
@@ -98,7 +98,7 @@ def control_heater() -> Union[Dict[str, Any], Tuple[Dict[str, Any], int]]:
 
 
 @app.route("/api/controls/fan", methods=["POST"])
-def control_fan() -> Union[Dict[str, Any], Tuple[Dict[str, Any], int]]:
+def control_fan() -> Union[Response, Tuple[Response, int]]:
     """Control fan state.
 
     Request body:
@@ -122,7 +122,7 @@ def control_fan() -> Union[Dict[str, Any], Tuple[Dict[str, Any], int]]:
 
 
 @app.route("/api/status")
-def get_status() -> Dict[str, Any]:
+def get_status() -> Response:
     """Get combined sensor and control status.
 
     Returns:
@@ -161,18 +161,19 @@ def get_status() -> Dict[str, Any]:
 
 
 @app.route("/")
-def serve_frontend() -> Any:
+def serve_frontend() -> Response:
     """Serve React frontend."""
-    return send_from_directory(app.static_folder, "index.html")
+    return send_from_directory(app.static_folder or WEBUI_DIR, "index.html")
 
 
 @app.route("/<path:path>")
-def serve_static(path: str) -> Any:
+def serve_static(path: str) -> Response:
     """Serve static files from React build."""
-    if os.path.exists(os.path.join(app.static_folder, path)):
-        return send_from_directory(app.static_folder, path)
+    static_folder = app.static_folder or WEBUI_DIR
+    if os.path.exists(os.path.join(static_folder, path)):
+        return send_from_directory(static_folder, path)
     else:
-        return send_from_directory(app.static_folder, "index.html")
+        return send_from_directory(static_folder, "index.html")
 
 
 def main() -> None:
