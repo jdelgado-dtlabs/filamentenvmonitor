@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Planning for v2.0
+- Major version release with breaking changes
+- Enhanced features and architecture improvements
+- Development branch: `release/v2.0-rc`
+
 ## [1.6.1] - 2025-12-09
 
 ### Added
