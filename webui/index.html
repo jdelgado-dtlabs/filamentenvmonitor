@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FilamentBox Environment Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .card-header h2 {
+            font-size: 1.4rem;
+            color: #667eea;
+        }
+
+        .timestamp {
+            font-size: 0.85rem;
+            color: #999;
+        }
+
+        .reading {
+            margin: 15px 0;
+        }
+
+        .reading-label {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .reading-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .reading-unit {
+            font-size: 1.2rem;
+            color: #999;
+            margin-left: 5px;
+        }
+
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .status-on {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-off {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+
+        .status-on .status-dot {
+            background: #28a745;
+        }
+
+        .status-off .status-dot {
+            background: #dc3545;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .mode-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+
+        .mode-auto {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .mode-manual {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            flex: 1;
+            min-width: 100px;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-on {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-on:hover {
+            background: #218838;
+        }
+
+        .btn-off {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-off:hover {
+            background: #c82333;
+        }
+
+        .btn-auto {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-auto:hover {
+            background: #5a6268;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #dc3545;
+        }
+
+        .loading {
+            text-align: center;
+            color: white;
+            font-size: 1.2rem;
+            padding: 40px;
+        }
+
+        .stale-data {
+            opacity: 0.6;
+        }
+
+        @media (max-width: 768px) {
+            header h1 {
+                font-size: 1.8rem;
+            }
+
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🌡️ FilamentBox Environment Monitor</h1>
+            <p>Real-time monitoring and control for 3D printer filament storage</p>
+        </header>
+
+        <div id="error-container"></div>
+        <div id="dashboard" class="loading">Loading data...</div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let updateInterval;
+
+        async function fetchData(endpoint) {
+            const response = await fetch(`${API_BASE}/api/${endpoint}`);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return await response.json();
+        }
+
+        async function controlDevice(device, state) {
+            const response = await fetch(`${API_BASE}/api/controls/${device}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ state }),
+            });
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return await response.json();
+        }
+
+        function formatValue(value, decimals = 1) {
+            return value !== null && value !== undefined ? value.toFixed(decimals) : 'N/A';
+        }
+
+        function formatTimestamp(timestamp) {
+            if (!timestamp) return 'N/A';
+            const date = new Date(timestamp * 1000);
+            return date.toLocaleString();
+        }
+
+        function formatAge(age) {
+            if (!age) return '';
+            if (age < 60) return `${Math.floor(age)}s ago`;
+            if (age < 3600) return `${Math.floor(age / 60)}m ago`;
+            return `${(age / 3600).toFixed(1)}h ago`;
+        }
+
+        function showError(message) {
+            const errorContainer = document.getElementById('error-container');
+            errorContainer.innerHTML = `
+                <div class="error-message">
+                    <strong>Error:</strong> ${message}
+                </div>
+            `;
+        }
+
+        function clearError() {
+            document.getElementById('error-container').innerHTML = '';
+        }
+
+        async function updateDashboard() {
+            try {
+                const data = await fetchData('status');
+                clearError();
+
+                const isStale = data.sensor.age && data.sensor.age > 10;
+                const staleClass = isStale ? 'stale-data' : '';
+
+                document.getElementById('dashboard').innerHTML = `
+                    <div class="card ${staleClass}">
+                        <div class="card-header">
+                            <h2>📊 Sensor Readings</h2>
+                            <span class="timestamp">${formatTimestamp(data.sensor.timestamp)}<br>${formatAge(data.sensor.age)}</span>
+                        </div>
+                        <div class="reading">
+                            <div class="reading-label">Temperature</div>
+                            <div class="reading-value">
+                                ${formatValue(data.sensor.temperature_c, 2)}<span class="reading-unit">°C</span>
+                                <span style="color: #ccc; margin: 0 10px;">/</span>
+                                ${formatValue(data.sensor.temperature_f, 2)}<span class="reading-unit">°F</span>
+                            </div>
+                        </div>
+                        <div class="reading">
+                            <div class="reading-label">Humidity</div>
+                            <div class="reading-value">
+                                ${formatValue(data.sensor.humidity, 1)}<span class="reading-unit">%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>🔥 Heater Control</h2>
+                            <span class="status-indicator ${data.controls.heater.on ? 'status-on' : 'status-off'}">
+                                <span class="status-dot"></span>
+                                ${data.controls.heater.on ? 'ON' : 'OFF'}
+                            </span>
+                        </div>
+                        <div>
+                            <span class="mode-badge ${data.controls.heater.mode === 'auto' ? 'mode-auto' : 'mode-manual'}">
+                                ${data.controls.heater.mode.toUpperCase()} MODE
+                            </span>
+                        </div>
+                        <div class="controls">
+                            <button class="btn btn-on" onclick="handleControl('heater', true)">Turn ON</button>
+                            <button class="btn btn-off" onclick="handleControl('heater', false)">Turn OFF</button>
+                            <button class="btn btn-auto" onclick="handleControl('heater', null)">Auto Mode</button>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>💨 Fan Control</h2>
+                            <span class="status-indicator ${data.controls.fan.on ? 'status-on' : 'status-off'}">
+                                <span class="status-dot"></span>
+                                ${data.controls.fan.on ? 'ON' : 'OFF'}
+                            </span>
+                        </div>
+                        <div>
+                            <span class="mode-badge ${data.controls.fan.mode === 'auto' ? 'mode-auto' : 'mode-manual'}">
+                                ${data.controls.fan.mode.toUpperCase()} MODE
+                            </span>
+                        </div>
+                        <div class="controls">
+                            <button class="btn btn-on" onclick="handleControl('fan', true)">Turn ON</button>
+                            <button class="btn btn-off" onclick="handleControl('fan', false)">Turn OFF</button>
+                            <button class="btn btn-auto" onclick="handleControl('fan', null)">Auto Mode</button>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                showError(`Failed to fetch data: ${error.message}`);
+                document.getElementById('dashboard').innerHTML = '';
+            }
+        }
+
+        async function handleControl(device, state) {
+            try {
+                await controlDevice(device, state);
+                await updateDashboard(); // Immediate refresh
+            } catch (error) {
+                showError(`Failed to control ${device}: ${error.message}`);
+            }
+        }
+
+        // Initialize
+        updateDashboard();
+        updateInterval = setInterval(updateDashboard, 2000); // Update every 2 seconds
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            clearInterval(updateInterval);
+        });
+    </script>
+</body>
+</html>

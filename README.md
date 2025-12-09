@@ -23,6 +23,7 @@ A Python 3.13 application for monitoring temperature and humidity in 3D printer 
 - **Multi-sensor support**: BME280 (I2C) and DHT22 (GPIO) with automatic detection
 - **Temperature control**: Optional GPIO relay control for heating with configurable thresholds
 - **Humidity control**: Optional GPIO relay control for exhaust fan with configurable thresholds
+- **Web UI**: Modern, responsive web interface accessible from any browser
 - **CLI interface**: Real-time monitoring and manual control of heater/fan with curses-based UI
 - **Reliable data collection**: Configurable intervals with graceful error handling
 - **Batched writes**: Optimized InfluxDB writes with size and time-based flush triggers
@@ -129,6 +130,30 @@ python filamentbox_cli.py
   - `Q` - Quit
 
 **Note**: The main application must be running for the CLI to display data and control devices.
+
+### Web UI Interface
+A modern, responsive web interface for monitoring and controlling from any browser:
+
+```bash
+# Install web dependencies
+source filamentcontrol/bin/activate
+pip install Flask Flask-CORS
+
+# Start the web server (main application must be running)
+python webui_server.py
+```
+
+Access the web interface at `http://localhost:5000` or `http://YOUR_PI_IP:5000` from any device on your network.
+
+**Features**:
+- Real-time sensor readings with auto-refresh
+- Visual indicators for heater/fan status (ON/OFF)
+- AUTO/MANUAL mode badges
+- One-click controls for manual override
+- Mobile-friendly responsive design
+- No build tools or Node.js required
+
+See `webui/README.md` for detailed documentation and API endpoints.
 
 ### As a systemd Service
 
