@@ -9,7 +9,11 @@ import time
 from influxdb import InfluxDBClient
 
 from .config import get
-from .heating_control import start_heating_control, stop_heating_control, update_temperature
+from .heating_control import (
+    start_heating_control,
+    stop_heating_control,
+    update_temperature,
+)
 from .humidity_control import (
     start_humidity_control,
     stop_humidity_control,
@@ -20,6 +24,9 @@ from .logging_config import configure_logging
 from .persistence import load_and_flush_persisted_batches
 from .sensor import convert_c_to_f, log_data, read_sensor_data
 
+# Global stop event shared by all threads
+_stop_event = threading.Event()
+
 
 def data_collection_cycle() -> None:
     """Continuously read sensor data, validate types, build point, and enqueue.
@@ -28,7 +35,7 @@ def data_collection_cycle() -> None:
     configured tags (if any), and skips points with no valid numeric fields.
     """
     read_interval = get("data_collection.read_interval")
-    while True:
+    while not _stop_event.is_set():
         temperature_c, humidity = read_sensor_data()
         temperature_f = convert_c_to_f(temperature_c) if temperature_c is not None else None
 
@@ -107,7 +114,7 @@ def cleanup_and_exit() -> None:
 def main() -> None:
     """Program entry: configure logging, recover persisted batches, start threads.
 
-    Sets up the writer and producer threads, performs one-time persisted batch
+    Sets up all worker threads, performs one-time persisted batch
     recovery, and monitors thread health until interrupted.
     """
     parser = argparse.ArgumentParser(description="FilamentBox Environment Data Logger")
@@ -148,38 +155,57 @@ def main() -> None:
     except Exception as e:
         logging.exception(f"Error during persisted batch recovery: {e}")
 
-    stop_event = threading.Event()
+    # Start all threads
+    threads = []
+
+    # InfluxDB writer thread
     writer_thread = threading.Thread(
-        target=influxdb_writer, args=(stop_event,), daemon=True, name="InfluxDBWriter"
+        target=influxdb_writer, args=(_stop_event,), daemon=True, name="InfluxDBWriter"
     )
     writer_thread.start()
+    threads.append(writer_thread)
 
-    producer_thread = threading.Thread(
+    # Data collection thread
+    collector_thread = threading.Thread(
         target=data_collection_cycle, daemon=True, name="DataCollector"
     )
-    producer_thread.start()
+    collector_thread.start()
+    threads.append(collector_thread)
 
-    # Start heating control thread (if enabled in config)
+    # Heating control thread (if enabled in config)
     start_heating_control()
 
-    # Start humidity control thread (if enabled in config)
+    # Humidity control thread (if enabled in config)
     start_humidity_control()
 
     try:
         logging.info("Data collection started. Press Ctrl+C to stop.")
         while True:
-            # Monitor thread health
+            # Monitor thread health for core threads
             if not writer_thread.is_alive():
                 logging.critical("InfluxDB writer thread has exited unexpectedly!")
-            if not producer_thread.is_alive():
+            if not collector_thread.is_alive():
                 logging.critical("Data collector thread has exited unexpectedly!")
             time.sleep(1)
     except KeyboardInterrupt:
         logging.info("Keyboard interrupt received. Stopping...")
-        stop_event.set()
+
+        # Signal all threads to stop
+        _stop_event.set()
+
+        # Stop control threads gracefully
         stop_heating_control()
         stop_humidity_control()
+
+        # Wait for queue to drain
         wait_for_queue_empty()
+
+        # Wait for core threads to finish (with timeout)
+        for thread in threads:
+            thread.join(timeout=5.0)
+            if thread.is_alive():
+                logging.warning(f"Thread {thread.name} did not stop gracefully")
+
         cleanup_and_exit()
         logging.info("Exiting main thread.")
 
