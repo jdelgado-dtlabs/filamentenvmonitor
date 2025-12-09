@@ -10,6 +10,11 @@ from influxdb import InfluxDBClient
 
 from .config import get
 from .heating_control import start_heating_control, stop_heating_control, update_temperature
+from .humidity_control import (
+    start_humidity_control,
+    stop_humidity_control,
+    update_humidity,
+)
 from .influx_writer import enqueue_data_point, influxdb_writer, wait_for_queue_empty
 from .logging_config import configure_logging
 from .persistence import load_and_flush_persisted_batches
@@ -83,6 +88,9 @@ def data_collection_cycle() -> None:
             # Update heating control with current temperature
             if temperature_c is not None:
                 update_temperature(temperature_c)
+            # Update humidity control with current humidity
+            if humidity is not None:
+                update_humidity(humidity)
         except queue.Full:
             # Dropping data is notable; record as a warning so it's visible on stdout
             logging.warning("Write queue is full. Dropping data point.")
@@ -154,6 +162,9 @@ def main() -> None:
     # Start heating control thread (if enabled in config)
     start_heating_control()
 
+    # Start humidity control thread (if enabled in config)
+    start_humidity_control()
+
     try:
         logging.info("Data collection started. Press Ctrl+C to stop.")
         while True:
@@ -167,6 +178,7 @@ def main() -> None:
         logging.info("Keyboard interrupt received. Stopping...")
         stop_event.set()
         stop_heating_control()
+        stop_humidity_control()
         wait_for_queue_empty()
         cleanup_and_exit()
         logging.info("Exiting main thread.")

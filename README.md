@@ -14,6 +14,7 @@ A Python 3.13 application for monitoring temperature and humidity in 3D printer 
 - Production-ready service with automated systemd installer
 - Multi-sensor support: BME280 (I2C) and DHT22 (GPIO)
 - Temperature-controlled heating: GPIO relay control with hysteresis
+- Humidity-controlled exhaust fan: GPIO relay control with hysteresis
 - Reliable batching, exponential backoff with jitter, SQLite persistence
 - YAML config with env overrides and lazy loading
 - Full CI/CD: Ruff, Mypy, pytest on Python 3.11–3.13; automated Releases
@@ -21,6 +22,7 @@ A Python 3.13 application for monitoring temperature and humidity in 3D printer 
 ## Features
 - **Multi-sensor support**: BME280 (I2C) and DHT22 (GPIO) with automatic detection
 - **Temperature control**: Optional GPIO relay control for heating with configurable thresholds
+- **Humidity control**: Optional GPIO relay control for exhaust fan with configurable thresholds
 - **Reliable data collection**: Configurable intervals with graceful error handling
 - **Batched writes**: Optimized InfluxDB writes with size and time-based flush triggers
 - **Automatic recovery**: SQLite persistence of unsent batches across restarts
@@ -81,6 +83,7 @@ Primary configuration lives in `config.yaml`. Environment variables override sen
 - `persistence.db_path`, `persistence.max_batches`
 - `sensor.type` ("bme280" or "dht22"), `sensor.sea_level_pressure` (BME280 only), `sensor.gpio_pin` (DHT22 only)
 - `heating_control.enabled` (default: false), `heating_control.gpio_pin` (default: 16), `heating_control.min_temp_c`, `heating_control.max_temp_c`, `heating_control.check_interval`
+- `humidity_control.enabled` (default: false), `humidity_control.gpio_pin` (default: 20), `humidity_control.min_humidity`, `humidity_control.max_humidity`, `humidity_control.check_interval`
 
 Environment overrides (via `.env` or shell):
 ```
@@ -232,6 +235,33 @@ heating_control:
 
 **Safety**: Heater is turned OFF on application shutdown or errors. Use appropriate relay ratings and consider additional thermal protection in your heating circuit.
 
+### Humidity Control
+The application supports optional humidity control via GPIO relay to manage an exhaust fan and maintain humidity within a specified range:
+
+**Configuration** (`config.yaml`):
+```yaml
+humidity_control:
+  enabled: false             # Set to true to enable fan control
+  gpio_pin: 20               # GPIO pin connected to relay (BCM numbering)
+  min_humidity: 40.0        # Fan turns OFF when humidity drops below this
+  max_humidity: 60.0        # Fan turns ON when humidity rises above this
+  check_interval: 1.0       # Seconds between humidity checks
+```
+
+**How it works**:
+- Runs on a separate thread monitoring current humidity
+- Uses hysteresis control to prevent rapid relay cycling:
+  - Fan turns ON when humidity > `max_humidity`
+  - Fan turns OFF when humidity < `min_humidity`
+  - Stays in current state when humidity is between thresholds
+- GPIO pin goes HIGH when fan is ON, LOW when OFF
+- Automatically disables if GPIO hardware is unavailable
+- Ensures fan is OFF on shutdown
+
+**Wiring**: Connect relay control input to specified GPIO pin. Relay should control fan power circuit (ensure proper electrical isolation and ratings).
+
+**Safety**: Fan is turned OFF on application shutdown or errors. Use appropriate relay ratings for your exhaust fan's power requirements.
+
 ## Common Issues
 | Symptom | Cause | Resolution |
 |--------|-------|-----------|
@@ -244,6 +274,8 @@ heating_control:
 | Service won't start | Config file missing | Ensure `config.yaml` exists in `/opt/filamentcontrol` |
 | Heating not working | GPIO unavailable or disabled | Set `heating_control.enabled: true`, verify GPIO hardware access |
 | Relay cycling rapidly | Thresholds too close | Increase gap between `min_temp_c` and `max_temp_c` (recommend 2-4°C) |
+| Fan not working | GPIO unavailable or disabled | Set `humidity_control.enabled: true`, verify GPIO hardware access |
+| Fan cycling rapidly | Humidity thresholds too close | Increase gap between `min_humidity` and `max_humidity` (recommend 10-20%) |
 
 ## Quick Reference Commands
 ```bash

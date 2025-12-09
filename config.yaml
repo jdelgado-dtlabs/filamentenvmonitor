@@ -71,3 +71,15 @@ heating_control:
   max_temp_c: 22.0
   # How often to check temperature and update relay state (seconds)
   check_interval: 1.0
+
+humidity_control:
+  # Enable/disable humidity control (exhaust fan)
+  enabled: false
+  # GPIO pin for fan relay (default: 20)
+  gpio_pin: 20
+  # Minimum humidity threshold (%) - fan turns OFF when humidity drops below this
+  min_humidity: 40.0
+  # Maximum humidity threshold (%) - fan turns ON when humidity rises above this
+  max_humidity: 60.0
+  # How often to check humidity and update relay state (seconds)
+  check_interval: 1.0
