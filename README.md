@@ -8,16 +8,19 @@
 ![Release](https://github.com/jdelgado-dtlabs/filamentenvmonitor/actions/workflows/release.yml/badge.svg)
 [![Latest Release](https://img.shields.io/github/v/release/jdelgado-dtlabs/filamentenvmonitor?label=latest%20release)](https://github.com/jdelgado-dtlabs/filamentenvmonitor/releases/latest)
 
-A Python 3.13 application for monitoring temperature and humidity in 3D printer filament storage environments. Supports multiple sensor types (BME280, DHT22) with robust data collection, batching, and InfluxDB integration.
+A Python 3.13 application for monitoring temperature and humidity in 3D printer filament storage environments. Supports multiple sensor types (BME280, DHT22) with robust data collection, batching, InfluxDB integration, active environment control, and both CLI and Web UI interfaces.
 
-## Highlights (v1.0.0)
-- Production-ready service with automated systemd installer
+## Highlights (v1.5)
+- **Web UI**: Modern, responsive browser-based interface with real-time monitoring and control
+- **Production deployment**: Automated installers with OS detection (Debian/Ubuntu, RedHat/CentOS)
+- **Nginx integration**: Automated reverse proxy configuration for Docker and bare metal
 - Multi-sensor support: BME280 (I2C) and DHT22 (GPIO)
 - Temperature-controlled heating: GPIO relay control with hysteresis
 - Humidity-controlled exhaust fan: GPIO relay control with hysteresis
+- CLI interface: Real-time terminal-based monitoring and control
 - Reliable batching, exponential backoff with jitter, SQLite persistence
 - YAML config with env overrides and lazy loading
-- Full CI/CD: Ruff, Mypy, pytest on Python 3.11–3.13; automated Releases
+- Full CI/CD: Ruff, Mypy, pytest (25 tests) on Python 3.11–3.13; automated Releases
 
 ## Features
 - **Multi-sensor support**: BME280 (I2C) and DHT22 (GPIO) with automatic detection
@@ -48,9 +51,23 @@ filamentcontrol/
     persistence.py
     config.py
     logging_config.py
-config.yaml
-.env (ignored by VCS)
-unsent_batches.db (created at runtime if persistence used)
+    heating_control.py
+    humidity_control.py
+    shared_state.py
+  webui/
+    index.html
+    README.md
+  webui_server.py
+  filamentbox_cli.py
+  config.yaml
+  .env (ignored by VCS)
+  unsent_batches.db (created at runtime if persistence used)
+  filamentbox.service
+  filamentbox-webui.service
+  install_service.sh
+  install_webui_service.sh
+  nginx-filamentbox.conf
+  WEBUI_DEPLOYMENT.md
 ```
 
 ## Requirements
@@ -465,14 +482,42 @@ GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push/PR:
 
 ## Version History
 
+### v1.5 - Web UI & Enhanced Deployment
+- **Web UI**: Modern, responsive browser-based interface with real-time monitoring and control
+  - Flask REST API with 16 comprehensive unit tests
+  - Vanilla HTML/CSS/JavaScript (no build tools required)
+  - One-click control for heater/fan manual override
+  - Auto-refresh with stale data detection
+  - CORS support for cross-origin requests
+- **Enhanced Installers**: Intelligent OS detection and package management
+  - Automated nginx configuration (Docker and bare metal support)
+  - System package detection and installation (Debian/Ubuntu, RedHat/CentOS/Fedora)
+  - Interactive prompts for nginx setup with config testing
+  - Graceful service restart options
+- **Production Deployment**: Complete deployment documentation
+  - Systemd service for web UI
+  - Nginx reverse proxy configuration
+  - HTTPS/SSL setup guide (self-signed and Let's Encrypt)
+  - Firewall and security best practices
+- **Comprehensive Testing**: 25 passing tests (9 core + 16 web UI)
+- **Updated Dependencies**: Pinned Flask ecosystem (Flask 3.1.0, Werkzeug 3.1.4, Jinja2 3.1.6)
+
+### v1.1.0 - Environment Control & CLI
+- Temperature-controlled heating with GPIO relay (pin 16)
+- Humidity-controlled exhaust fan with GPIO relay (pin 20)
+- Curses-based CLI for real-time monitoring and manual control
+- Thread-safe shared state management
+- Manual override system for heater and fan
+- Improved thread management with coordinated shutdown
+
 ### v1.0.0 - Stable Major Release
-- Public repository with working badges (CI, Release, Latest).
-- Robust, production-ready monitoring with multi-sensor support (BME280, DHT22).
-- Systemd service integration with automated installer.
-- Reliable batching, retry with exponential backoff + jitter, and SQLite persistence.
-- Comprehensive configuration via YAML with environment overrides; lazy config loading.
-- Full code quality pipeline: Ruff lint/format, Mypy typing, pytest tests, pre-commit hooks.
-- CI/CD on Python 3.11–3.13; automated GitHub Releases with source archives.
+- Public repository with working badges (CI, Release, Latest)
+- Robust, production-ready monitoring with multi-sensor support (BME280, DHT22)
+- Systemd service integration with automated installer
+- Reliable batching, retry with exponential backoff + jitter, and SQLite persistence
+- Comprehensive configuration via YAML with environment overrides; lazy config loading
+- Full code quality pipeline: Ruff lint/format, Mypy typing, pytest tests, pre-commit hooks
+- CI/CD on Python 3.11–3.13; automated GitHub Releases with source archives
 
 ### v0.2.0 - Service Integration & Multi-Sensor Support
 - Added systemd service file and automated installer
