@@ -23,6 +23,7 @@ from .influx_writer import enqueue_data_point, influxdb_writer, wait_for_queue_e
 from .logging_config import configure_logging
 from .persistence import load_and_flush_persisted_batches
 from .sensor import convert_c_to_f, log_data, read_sensor_data
+from .shared_state import update_sensor_data
 
 # Global stop event shared by all threads
 _stop_event = threading.Event()
@@ -92,6 +93,8 @@ def data_collection_cycle() -> None:
         try:
             enqueue_data_point(db_json_body)
             log_data(temperature_c, temperature_f, humidity)
+            # Update shared state for monitoring
+            update_sensor_data(temperature_c, temperature_f, humidity, time.time())
             # Update heating control with current temperature
             if temperature_c is not None:
                 update_temperature(temperature_c)

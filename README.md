@@ -23,6 +23,7 @@ A Python 3.13 application for monitoring temperature and humidity in 3D printer 
 - **Multi-sensor support**: BME280 (I2C) and DHT22 (GPIO) with automatic detection
 - **Temperature control**: Optional GPIO relay control for heating with configurable thresholds
 - **Humidity control**: Optional GPIO relay control for exhaust fan with configurable thresholds
+- **CLI interface**: Real-time monitoring and manual control of heater/fan with curses-based UI
 - **Reliable data collection**: Configurable intervals with graceful error handling
 - **Batched writes**: Optimized InfluxDB writes with size and time-based flush triggers
 - **Automatic recovery**: SQLite persistence of unsent batches across restarts
@@ -105,6 +106,29 @@ source filamentcontrol/bin/activate
 python -m filamentbox.main           # Normal run
 python -m filamentbox.main --debug   # Enable verbose debug logging
 ```
+
+### CLI Monitoring & Control Interface
+A real-time CLI interface for monitoring sensor readings and controlling heater/fan:
+
+```bash
+source filamentcontrol/bin/activate
+python filamentbox_cli.py
+```
+
+**Features**:
+- Real-time sensor readings (temperature, humidity)
+- Control status display (heater/fan on/off, auto/manual mode)
+- Manual override controls:
+  - `H` - Turn heater ON (manual)
+  - `h` - Turn heater OFF (manual)
+  - `Ctrl+H` - Return heater to AUTO mode
+  - `F` - Turn fan ON (manual)
+  - `f` - Turn fan OFF (manual)
+  - `Ctrl+F` - Return fan to AUTO mode
+  - `R` - Refresh display
+  - `Q` - Quit
+
+**Note**: The main application must be running for the CLI to display data and control devices.
 
 ### As a systemd Service
 

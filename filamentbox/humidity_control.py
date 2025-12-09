@@ -10,6 +10,7 @@ import time
 from typing import Optional
 
 from .config import get
+from .shared_state import get_fan_manual_override, update_fan_state
 
 # Current humidity value (updated by main thread, read by control thread)
 _current_humidity: Optional[float] = None
@@ -105,33 +106,50 @@ def _humidity_control_loop() -> None:
 
     while not _stop_event.is_set():
         try:
-            with _humidity_lock:
-                humidity = _current_humidity
+            # Check for manual override first
+            manual_override = get_fan_manual_override()
 
-            if humidity is not None:
-                # Hysteresis control logic
-                if humidity > max_humidity and not fan_state:
-                    # Humidity too high - turn fan ON
+            if manual_override is not None:
+                # Manual control mode
+                desired_state = manual_override
+                if desired_state != fan_state:
                     if _relay_pin:
-                        _relay_pin.value = True  # Pin HIGH = relay closed = fan ON
-                    fan_state = True
-                    logging.info(f"Fan ON: humidity {humidity:.1f}% > {max_humidity}%")
-
-                elif humidity < min_humidity and fan_state:
-                    # Humidity acceptable - turn fan OFF
-                    if _relay_pin:
-                        _relay_pin.value = False  # Pin LOW = relay open = fan OFF
-                    fan_state = False
-                    logging.info(f"Fan OFF: humidity {humidity:.1f}% < {min_humidity}%")
-
-                else:
-                    # Within hysteresis range - maintain current state
-                    logging.debug(
-                        f"Humidity {humidity:.1f}% in range, fan state: "
-                        f"{'ON' if fan_state else 'OFF'}"
-                    )
+                        _relay_pin.value = desired_state
+                    fan_state = desired_state
+                    update_fan_state(fan_state)
+                    mode = "MANUAL"
+                    logging.info(f"Fan {'ON' if fan_state else 'OFF'} ({mode})")
             else:
-                logging.debug("No humidity data available for fan control")
+                # Automatic control mode
+                with _humidity_lock:
+                    humidity = _current_humidity
+
+                if humidity is not None:
+                    # Hysteresis control logic
+                    if humidity > max_humidity and not fan_state:
+                        # Humidity too high - turn fan ON
+                        if _relay_pin:
+                            _relay_pin.value = True  # Pin HIGH = relay closed = fan ON
+                        fan_state = True
+                        update_fan_state(fan_state)
+                        logging.info(f"Fan ON: humidity {humidity:.1f}% > {max_humidity}%")
+
+                    elif humidity < min_humidity and fan_state:
+                        # Humidity acceptable - turn fan OFF
+                        if _relay_pin:
+                            _relay_pin.value = False  # Pin LOW = relay open = fan OFF
+                        fan_state = False
+                        update_fan_state(fan_state)
+                        logging.info(f"Fan OFF: humidity {humidity:.1f}% < {min_humidity}%")
+
+                    else:
+                        # Within hysteresis range - maintain current state
+                        logging.debug(
+                            f"Humidity {humidity:.1f}% in range, fan state: "
+                            f"{'ON' if fan_state else 'OFF'}"
+                        )
+                else:
+                    logging.debug("No humidity data available for fan control")
 
             time.sleep(check_interval)
 

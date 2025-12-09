@@ -10,6 +10,10 @@ import time
 from typing import Optional
 
 from filamentbox.config import get
+from filamentbox.shared_state import (
+    get_heater_manual_override,
+    update_heater_state,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -128,25 +132,41 @@ def _heating_control_loop() -> None:
 
     while not _stop_event.is_set():
         try:
-            # Get current temperature
-            with _temperature_lock:
-                temp = _current_temperature
+            # Check for manual override first
+            manual_override = get_heater_manual_override()
 
-            if temp is None:
-                # No temperature reading yet, wait
-                time.sleep(check_interval)
-                continue
+            if manual_override is not None:
+                # Manual control mode
+                desired_state = manual_override
+                if desired_state != heater_state:
+                    relay.value = desired_state
+                    heater_state = desired_state
+                    update_heater_state(heater_state)
+                    mode = "MANUAL"
+                    logger.info(f"Heater {'ON' if heater_state else 'OFF'} ({mode})")
+            else:
+                # Automatic control mode
+                # Get current temperature
+                with _temperature_lock:
+                    temp = _current_temperature
 
-            # Implement hysteresis control
-            # Turn on if below min, turn off if above max
-            if temp < min_temp and not heater_state:
-                relay.value = True
-                heater_state = True
-                logger.info(f"Heater ON: temperature {temp:.2f}°C < {min_temp}°C")
-            elif temp > max_temp and heater_state:
-                relay.value = False
-                heater_state = False
-                logger.info(f"Heater OFF: temperature {temp:.2f}°C > {max_temp}°C")
+                if temp is None:
+                    # No temperature reading yet, wait
+                    time.sleep(check_interval)
+                    continue
+
+                # Implement hysteresis control
+                # Turn on if below min, turn off if above max
+                if temp < min_temp and not heater_state:
+                    relay.value = True
+                    heater_state = True
+                    update_heater_state(heater_state)
+                    logger.info(f"Heater ON: temperature {temp:.2f}°C < {min_temp}°C")
+                elif temp > max_temp and heater_state:
+                    relay.value = False
+                    heater_state = False
+                    update_heater_state(heater_state)
+                    logger.info(f"Heater OFF: temperature {temp:.2f}°C > {max_temp}°C")
 
             time.sleep(check_interval)
 
