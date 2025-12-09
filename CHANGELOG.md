@@ -5,6 +5,102 @@ All notable changes to the FilamentBox Environment Monitor will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [1.6.1] - 2025-12-09
+
+### Added
+- **Interactive Installation Menu System**
+  - Smart detection of existing services and installation status
+  - Context-aware menu options based on current system state
+  - Fresh installation option for new deployments
+  - Service update option with code refresh and graceful restart
+  - Configuration-only updates without service reinstall
+  - Service log viewer from installer menu
+  - Automatic detection of installation directory from existing services
+  - Color-coded status indicators (running/stopped/not installed)
+  - Menu-driven workflow for better user experience
+- **Comprehensive Configuration Setup Script** (`install/setup.sh`)
+  - **Complete coverage of all config.yaml options**:
+    - InfluxDB (required): Host, port, database, credentials
+    - Data Collection: Read intervals, batch sizes, measurement names, tags
+    - Queue: In-memory queue sizing
+    - Retry: Exponential backoff, alert thresholds, persistence triggers
+    - Persistence: Database path and batch limits
+    - Sensor (required): Type selection (BME280/DHT22), GPIO pins, calibration
+    - Heating Control: Enable/disable, GPIO pin, temperature thresholds, check intervals
+    - Humidity Control: Enable/disable, GPIO pin, humidity thresholds, check intervals
+  - **Smart category-based configuration**:
+    - Automatic detection of existing .env categories
+    - Opt-in prompts for new optional categories
+    - Skip categories you don't need yet
+    - Re-run anytime to enable new features (heating, humidity control)
+  - **Intelligent value preservation**:
+    - Reads existing .env values and shows them as defaults
+    - Only updates values that are explicitly changed
+    - Automatic timestamped backups before modifications
+  - **Enhanced user experience**:
+    - Color-coded output and status indicators
+    - Category descriptions explain each section
+    - Configuration summary before saving
+    - Secure password input (masked display)
+    - Proper file permissions (chmod 600)
+    - Security best practices warnings
+  - **Integrated into main installer workflow** with optional prompts
+- **Comprehensive Installation Documentation**
+  - Created `install/INSTALL.md` - Complete installation and configuration guide (1413 lines)
+  - Generated `install/INSTALL.pdf` - PDF version of installation guide (221KB)
+  - Hardware requirements and sensor wiring diagrams
+  - Detailed configuration guide with examples
+  - Production deployment instructions (systemd, nginx, HTTPS)
+  - Service management documentation
+  - Comprehensive troubleshooting section
+  - Uninstallation procedures
+
+### Changed
+- **Installation Directory Reorganization**
+  - All installation files consolidated in `install/` directory
+  - Moved `install.sh`, `install_service.sh`, `install_webui_service.sh` to `install/`
+  - Moved `filamentbox.service`, `filamentbox-webui.service` to `install/`
+  - Moved `nginx-filamentbox.conf` to `install/`
+  - Updated all installer scripts to reference new file locations
+  - Master installer now calls `./install/install_service.sh` and `./install/install_webui_service.sh`
+  - **Master installer now prompts to run setup.sh** before service installation
+  - Setup.sh can detect and preserve existing configurations during updates
+- **Web UI Directory Reorganization**
+  - Moved `webui_server.py` to `webui/webui_server.py`
+  - Removed redundant `WEBUI_DEPLOYMENT.md` (content merged into `install/INSTALL.md`)
+  - All web UI components now consolidated in `webui/` directory
+  - Updated all references to point to comprehensive installation guide
+- **Enhanced Configuration Setup Script**
+  - Complete rewrite of `setup.sh` to support all `config.yaml` categories
+  - Category-based configuration with optional sections
+  - Intelligent detection of existing .env categories
+  - Supports: InfluxDB, data collection, queue, retry, persistence, sensor, heating control, humidity control
+  - Auto-prompts for new categories only, preserves existing configurations
+  - Enables easy addition of heating/humidity control features after initial installation
+- **Documentation Reorganization**
+  - Simplified main README.md to reference specialized documentation
+  - Removed installation details from main README (now in `install/INSTALL.md`)
+  - Removed configuration details from main README (now in `install/INSTALL.md`)
+  - Removed service management details from main README (now in `install/INSTALL.md`)
+  - Added installation guide and setup script to documentation section
+  - Main README now includes setup.sh in installation workflow
+  - Main README now focuses on quick start and feature overview
+  - Created specialized READMEs for different audiences:
+    - `install/INSTALL.md` - Installation and configuration
+    - `filamentbox/README.md` - Module architecture
+    - `tests/README.md` - Testing documentation
+    - `webui/README.md` - Web UI API
+
+### Technical
+- Installation guide uses ASCII characters for better PDF compatibility
+- Temperature symbols changed from °C to C in documentation
+- Resistor values changed from kΩ to kohm in documentation
+- Unicode symbols removed for LaTeX compatibility
+- Table formatting simplified for better rendering
+- Setup script executable permission set automatically
+
 ## [1.6.0] - 2025-12-09
 
 ### Added

@@ -36,7 +36,7 @@ python -m filamentbox.main
 
 # In another terminal, start the web server
 source filamentcontrol/bin/activate
-python webui_server.py
+python webui/webui_server.py
 ```
 
 The web interface will be available at: `http://localhost:5000`
@@ -54,11 +54,11 @@ sudo ./install_webui_service.sh
 # Access directly
 http://YOUR_PI_IP:5000
 
-# Or configure nginx reverse proxy (see WEBUI_DEPLOYMENT.md)
+# Or configure nginx reverse proxy (see install/INSTALL.md)
 http://YOUR_PI_IP
 ```
 
-See [WEBUI_DEPLOYMENT.md](../WEBUI_DEPLOYMENT.md) for complete deployment documentation including:
+See [install/INSTALL.md](../install/INSTALL.md#production-deployment) for complete deployment documentation including:
 - Systemd service installation and management
 - Nginx reverse proxy configuration
 - HTTPS/SSL setup

@@ -161,12 +161,12 @@ TEMP_DIR=$(mktemp -d)
 echo
 echo -e "${BLUE}Preparing installation files...${NC}"
 
-# Copy and update service files
-cp "$INSTALL_DIR/filamentbox.service" "$TEMP_DIR/"
-cp "$INSTALL_DIR/filamentbox-webui.service" "$TEMP_DIR/"
-cp "$INSTALL_DIR/nginx-filamentbox.conf" "$TEMP_DIR/"
-cp "$INSTALL_DIR/install_service.sh" "$TEMP_DIR/"
-cp "$INSTALL_DIR/install_webui_service.sh" "$TEMP_DIR/"
+# Copy and update service files from install directory
+cp "$INSTALL_DIR/install/filamentbox.service" "$TEMP_DIR/"
+cp "$INSTALL_DIR/install/filamentbox-webui.service" "$TEMP_DIR/"
+cp "$INSTALL_DIR/install/nginx-filamentbox.conf" "$TEMP_DIR/"
+cp "$INSTALL_DIR/install/install_service.sh" "$TEMP_DIR/"
+cp "$INSTALL_DIR/install/install_webui_service.sh" "$TEMP_DIR/"
 
 # Update paths in all files
 update_paths_in_file "$TEMP_DIR/filamentbox.service" "$INSTALL_DIR"
@@ -175,16 +175,17 @@ update_paths_in_file "$TEMP_DIR/nginx-filamentbox.conf" "$INSTALL_DIR"
 update_paths_in_file "$TEMP_DIR/install_service.sh" "$INSTALL_DIR"
 update_paths_in_file "$TEMP_DIR/install_webui_service.sh" "$INSTALL_DIR"
 
-# Copy modified files back
-cp "$TEMP_DIR/filamentbox.service" "$INSTALL_DIR/"
-cp "$TEMP_DIR/filamentbox-webui.service" "$INSTALL_DIR/"
-cp "$TEMP_DIR/nginx-filamentbox.conf" "$INSTALL_DIR/"
-cp "$TEMP_DIR/install_service.sh" "$INSTALL_DIR/"
-cp "$TEMP_DIR/install_webui_service.sh" "$INSTALL_DIR/"
+# Copy modified files back to install directory
+cp "$TEMP_DIR/filamentbox.service" "$INSTALL_DIR/install/"
+cp "$TEMP_DIR/filamentbox-webui.service" "$INSTALL_DIR/install/"
+cp "$TEMP_DIR/nginx-filamentbox.conf" "$INSTALL_DIR/install/"
+cp "$TEMP_DIR/install_service.sh" "$INSTALL_DIR/install/"
+cp "$TEMP_DIR/install_webui_service.sh" "$INSTALL_DIR/install/"
 
 # Make installers executable
-chmod +x "$INSTALL_DIR/install_service.sh"
-chmod +x "$INSTALL_DIR/install_webui_service.sh"
+chmod +x "$INSTALL_DIR/install/install_service.sh"
+chmod +x "$INSTALL_DIR/install/install_webui_service.sh"
+chmod +x "$INSTALL_DIR/install/setup.sh"
 
 echo -e "${GREEN}✓ Installation files prepared${NC}"
 
@@ -235,12 +236,40 @@ else
     echo -e "${GREEN}✓ config.yaml exists${NC}"
 fi
 
-if [ ! -f "$INSTALL_DIR/.env" ]; then
-    if [ -f "$INSTALL_DIR/.env.example" ]; then
-        echo "Creating .env from example..."
-        cp "$INSTALL_DIR/.env.example" "$INSTALL_DIR/.env"
-        echo -e "${GREEN}✓ .env created${NC}"
-        echo -e "${YELLOW}Note: Please edit .env with your settings${NC}"
+# Run interactive configuration setup
+echo
+echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+echo -e "${CYAN}Environment Configuration${NC}"
+echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
+echo
+
+if [ -f "$INSTALL_DIR/.env" ]; then
+    echo -e "${GREEN}Existing .env file detected.${NC}"
+    echo ""
+    read -p "Would you like to review/update your configuration? [Y/n]: " run_setup
+else
+    echo -e "${YELLOW}No .env file found.${NC}"
+    echo ""
+    read -p "Would you like to configure your environment settings now? [Y/n]: " run_setup
+fi
+
+if [[ ! "$run_setup" =~ ^[Nn]$ ]]; then
+    echo ""
+    if "$INSTALL_DIR/install/setup.sh"; then
+        echo -e "${GREEN}✓ Environment configuration complete${NC}"
+    else
+        echo -e "${YELLOW}Configuration skipped or failed${NC}"
+        echo -e "${YELLOW}You can run it later: ./install/setup.sh${NC}"
+    fi
+else
+    echo -e "${YELLOW}Configuration skipped${NC}"
+    if [ ! -f "$INSTALL_DIR/.env" ]; then
+        if [ -f "$INSTALL_DIR/.env.example" ]; then
+            echo "Creating .env from example..."
+            cp "$INSTALL_DIR/.env.example" "$INSTALL_DIR/.env"
+            echo -e "${GREEN}✓ .env created${NC}"
+            echo -e "${YELLOW}Note: Please edit .env with your settings${NC}"
+        fi
     fi
 fi
 
@@ -252,7 +281,7 @@ echo -e "${CYAN}═════════════════════�
 echo
 
 cd "$INSTALL_DIR"
-if ! ./install_service.sh; then
+if ! ./install/install_service.sh; then
     echo -e "${RED}Main service installation failed${NC}"
     exit 1
 fi
@@ -265,7 +294,7 @@ echo -e "${CYAN}═════════════════════�
 echo
 
 cd "$INSTALL_DIR"
-if ! ./install_webui_service.sh; then
+if ! ./install/install_webui_service.sh; then
     echo -e "${RED}Web UI service installation failed${NC}"
     exit 1
 fi

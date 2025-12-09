@@ -219,7 +219,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
             NGINX_CONF_FILE="$NGINX_CONFIG_PATH/filamentbox.conf"
             
             echo "Installing nginx configuration to: $NGINX_CONF_FILE"
-            cp nginx-filamentbox.conf "$NGINX_CONF_FILE"
+            cp "$SCRIPT_DIR/nginx-filamentbox.conf" "$NGINX_CONF_FILE"
             echo -e "${GREEN}✓ Nginx configuration copied${NC}"
             echo
             
@@ -283,7 +283,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
             NGINX_CONF_FILE="$NGINX_INSTALL_PATH/filamentbox.conf"
             
             echo "Installing nginx configuration to: $NGINX_CONF_FILE"
-            cp nginx-filamentbox.conf "$NGINX_CONF_FILE"
+            cp "$SCRIPT_DIR/nginx-filamentbox.conf" "$NGINX_CONF_FILE"
             echo -e "${GREEN}✓ Nginx configuration copied${NC}"
             
             # Enable site if using sites-available structure

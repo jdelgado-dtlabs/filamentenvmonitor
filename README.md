@@ -42,108 +42,53 @@ A Python 3.13 application for monitoring temperature and humidity in 3D printer 
 - **Code quality**: Full type hints, pre-commit hooks, automated CI/CD
 - **Remote InfluxDB**: Designed for network-based database deployments
 
-## Directory Layout
-```
-filamentcontrol/
-  filamentbox/
-    __init__.py
-    main.py
-    influx_writer.py
-    sensor.py
-    persistence.py
-    config.py
-    logging_config.py
-    heating_control.py
-    humidity_control.py
-    shared_state.py
-  webui/
-    index.html
-    README.md
-  webui_server.py
-  filamentbox_cli.py
-  config.yaml
-  .env (ignored by VCS)
-  unsent_batches.db (created at runtime if persistence used)
-  filamentbox.service
-  filamentbox-webui.service
-  install_service.sh
-  install_webui_service.sh
-  nginx-filamentbox.conf
-  WEBUI_DEPLOYMENT.md
-```
+## Documentation
 
-## Requirements
-- Python 3.13 (virtual environment recommended)
-- InfluxDB (tested with 1.x HTTP API)
-- Supported sensors:
-  - BME280 (I2C interface)
-  - DHT22 (GPIO pin, default GPIO4)
+- **[Installation Guide](install/INSTALL.md)** ([PDF](install/INSTALL.pdf)) - Complete installation and configuration guide
+- **[FilamentBox Core Module](filamentbox/README.md)** - Detailed module architecture and component documentation
+- **[Tests](tests/README.md)** - Complete testing documentation and guidelines
+- **[Web UI](webui/README.md)** - Web interface API documentation
+- **[Web UI Deployment](webui/WEBUI_DEPLOYMENT.md)** - Production deployment guide with nginx and HTTPS
+- **[CHANGELOG](CHANGELOG.md)** - Version history and release notes
 
-## Installation & Setup
+## Quick Start
 
-### Quick Installation (Recommended)
+### Requirements
+- Python 3.13+ (virtual environment recommended)
+- InfluxDB 1.x HTTP API
+- Raspberry Pi with BME280 (I2C) or DHT22 (GPIO) sensor
 
-The easiest way to install FilamentBox is using the master installer:
+### Installation
 
 ```bash
-# Clone or download the repository
+# Clone the repository
 git clone https://github.com/jdelgado-dtlabs/filamentenvmonitor.git
 cd filamentenvmonitor
 
+# Optional: Run comprehensive configuration setup (creates .env file)
+# Supports all config.yaml options: InfluxDB, sensors, heating, humidity control, etc.
+./install/setup.sh
+
 # Run the master installer
-sudo ./install.sh
+sudo ./install/install.sh
 ```
 
-The installer will:
-1. Ask for installation directory (default: `/opt/filamentcontrol`)
-2. Create directory structure and copy files
-3. Configure service files with correct paths
-4. Set up virtual environment (if needed)
-5. Install both main and web UI services
-6. Verify all services are running
-7. Show logs if any issues occur
+The installer handles everything: directory setup, service installation, and verification.
 
-### Manual Installation
-
-If you prefer manual setup:
-
-```bash
-# Create / activate virtual environment (already present in repository example)
-python -m venv filamentcontrol
-source filamentcontrol/bin/activate
-
-# Install runtime dependencies
-pip install -r requirements.txt
-
-# (Optional) Install development tooling (lint, type-check, hooks)
-pip install -r requirements-dev.txt
-pre-commit install
-```
+**For detailed installation instructions, hardware setup, configuration options, and troubleshooting, see the [Installation Guide](install/INSTALL.md)** ([PDF version](install/INSTALL.pdf))
 
 ## Configuration
-Primary configuration lives in `config.yaml`. Environment variables override sensitive or dynamic values.
 
-`config.yaml` (key sections):
-- `influxdb.host`, `influxdb.port`, `influxdb.username`, `influxdb.password`, `influxdb.database`
-- `data_collection.read_interval`, `data_collection.batch_size`, `data_collection.flush_interval`, `data_collection.measurement`, optional `data_collection.tags`
-- `queue.max_size`
-- `retry.backoff_base`, `retry.backoff_max`, `retry.alert_threshold`, `retry.persist_on_alert`
-- `persistence.db_path`, `persistence.max_batches`
-- `sensor.type` ("bme280" or "dht22"), `sensor.sea_level_pressure` (BME280 only), `sensor.gpio_pin` (DHT22 only)
-- `heating_control.enabled` (default: false), `heating_control.gpio_pin` (default: 16), `heating_control.min_temp_c`, `heating_control.max_temp_c`, `heating_control.check_interval`
-- `humidity_control.enabled` (default: false), `humidity_control.gpio_pin` (default: 20), `humidity_control.min_humidity`, `humidity_control.max_humidity`, `humidity_control.check_interval`
+Configuration is managed through `config.yaml` with optional environment variable overrides.
 
-Environment overrides (via `.env` or shell):
-```
-INFLUXDB_USERNAME=admin
-INFLUXDB_PASSWORD=secret
-INFLUXDB_HOST=192.168.1.10
-INFLUXDB_PORT=8086
-INFLUXDB_DATABASE=influx
-DATA_COLLECTION_MEASUREMENT=environment
-DATA_COLLECTION_TAGS={"location": "filamentbox", "device": "pi-zero"}
-```
-Tags must be valid JSON.
+**Key configuration areas**:
+- InfluxDB connection settings
+- Data collection intervals and batching
+- Sensor type and GPIO pins
+- Temperature and humidity control thresholds
+- Retry and persistence behavior
+
+**For complete configuration details, examples, and best practices, see the [Installation Guide](install/INSTALL.md#configuration-guide)**
 
 ## Running the Application
 
@@ -186,7 +131,7 @@ source filamentcontrol/bin/activate
 pip install Flask Flask-CORS
 
 # Start the web server (main application must be running)
-python webui_server.py
+python webui/webui_server.py
 ```
 
 Access the web interface at `http://localhost:5000` or `http://YOUR_PI_IP:5000` from any device on your network.
@@ -208,224 +153,70 @@ sudo ./install_webui_service.sh
 # Or configure nginx reverse proxy for standard HTTP/HTTPS ports
 ```
 
-See `webui/README.md` for API documentation and `WEBUI_DEPLOYMENT.md` for complete deployment guide including nginx configuration, HTTPS setup, and troubleshooting.
+See `webui/README.md` for API documentation and `install/INSTALL.md` for complete deployment guide including nginx configuration, HTTPS setup, and troubleshooting.
 
-## Production Deployment (Systemd Service)
+## Production Deployment
 
-### Quick Install (Recommended)
-The master installer handles everything automatically:
-
-```bash
-# Run the master installer
-sudo ./install.sh
-
-# The installer will:
-# - Ask for installation directory
-# - Copy all files and configure paths
-# - Install both main and web UI services
-# - Verify all services are running
-# - Show logs if any issues occur
-```
-
-### Manual Service Installation
-
-Install the main application service:
+### Systemd Service Installation
 
 ```bash
-# Run the service installer
-sudo ./install_service.sh
+# Master installer (recommended)
+sudo ./install/install.sh
 
-# The installer will:
-# - Detect OS and install required packages
-# - Check for existing service and version
-# - Update if newer version available
-# - Enable and optionally start the service
-```
-
-Install the web UI service (requires main service):
-
-```bash
-# Run the web UI installer
-sudo ./install_webui_service.sh
-
-# The installer will:
-# - Check for Flask dependencies
-# - Detect existing installation and version
-# - Configure nginx if installed (Docker or bare metal)
-# - Enable and optionally start the service
+# Or install services individually
+sudo ./install/install_service.sh          # Main application
+sudo ./install/install_webui_service.sh    # Web UI
 ```
 
 ### Service Management
 
 ```bash
-# Main application
-sudo systemctl start filamentbox.service
-sudo systemctl stop filamentbox.service
-sudo systemctl restart filamentbox.service
+# Check status
 sudo systemctl status filamentbox.service
-sudo journalctl -u filamentbox.service -f
-
-# Web UI
-sudo systemctl start filamentbox-webui.service
-sudo systemctl stop filamentbox-webui.service
-sudo systemctl restart filamentbox-webui.service
 sudo systemctl status filamentbox-webui.service
-sudo journalctl -u filamentbox-webui.service -f
+
+# View logs
+sudo journalctl -u filamentbox.service -f
 ```
 
-### Updating Existing Installation
+**For complete service management, updating, nginx configuration, and troubleshooting, see the [Installation Guide](install/INSTALL.md#service-management)**
 
-Both installers support smart updates with version detection:
+## Temperature and Humidity Control
 
-```bash
-# Update main service
-sudo ./install_service.sh
-# - Detects version difference
-# - Shows what changed (diff view)
-# - Gracefully restarts if service was running
-# - Skips if already up to date
+The application supports optional GPIO relay control for both heating and humidity management. See the [FilamentBox Core Module documentation](filamentbox/README.md#heating_controlpy) for detailed information on:
+- Configuration options
+- Hysteresis control logic
+- Wiring and safety considerations
+- Manual override capabilities
 
-# Update web UI service
-sudo ./install_webui_service.sh
-# - Compares versions
-# - Updates configuration
-# - Restarts service if it was running
-```
-
-### Debug Mode
-Shows per-batch preview:
-```
-DEBUG - Batch ready for write (N points):
-DEBUG -   Point 1: {"measurement": "environment", "fields": {...}, "tags": {...}}
-```
-
-### Graceful Shutdown
-Press Ctrl+C; application flushes queue, persists unsent batches (if threshold reached), and exits.
-
-## Data Point Structure
-Each measurement dict enqueued:
-```json
-{
-  "measurement": "environment",
-  "fields": {
-    "temperature_c": 22.53,
-    "temperature_f": 72.55,
-    "humidity": 28.7
-  },
-  "tags": {"location": "filamentbox"}
-}
-```
-Fields with `None` values are omitted. Tags optional.
-
-## Persistence & Recovery
-- Failed write batches (after alert threshold) can be persisted to SQLite (`unsent_batches.db`).
-- On startup, `load_and_flush_persisted_batches` attempts immediate write of oldest-first batches.
-- Malformed JSON or HTTP 400 (bad request) responses cause permanent drop of the batch.
-
-## Retry & Backoff
-On write failure:
-- Failure count increments.
-- Exponential backoff: `backoff = min(base * 2**(n-1), max)` plus 0–10% jitter.
-- After `alert_threshold`, alert handler (if registered) invoked and batch may persist.
-
-## Queue Behavior
-Write queue max size configurable (`queue.max_size`). When full:
-- Oldest item dropped to make room for newest (freshness bias).
-
-## Available Python Entry Points
-- `filamentbox.main` — Main application with threads and recovery.
-- `filamentbox.sensor` — Sensor helpers (`read_sensor_data`, `convert_c_to_f`).
-- `filamentbox.influx_writer` — Writer thread utilities (`enqueue_data_point`, `register_alert_handler`, `wait_for_queue_empty`).
-- `filamentbox.persistence` — Batch persistence (`persist_batch`, `load_and_flush_persisted_batches`).
-- `filamentbox.config` — Configuration (`get`, `load_config`).
-- `filamentbox.logging_config` — Logging setup (`configure_logging`).
-
-## Programmatic Usage Example
-```python
-from filamentbox.config import get
-from filamentbox.influx_writer import enqueue_data_point
-
-point = {
-    "measurement": get("data_collection.measurement") or "environment",
-    "fields": {"temperature_c": 21.3, "humidity": 40.2},
-    "tags": get("data_collection.tags")
-}
-enqueue_data_point(point)
-```
-
-## Monitoring & Troubleshooting
-- Enable `--debug` for detailed batch content before writes.
-- Look for ERROR logs (stderr) indicating write failures or sensor exceptions.
-- CRITICAL logs indicate unexpected thread termination.
-
-### Temperature Control
-The application supports optional heating control via GPIO relay to maintain temperature within a specified range:
-
-**Configuration** (`config.yaml`):
+**Quick Setup**:
 ```yaml
+# In config.yaml
 heating_control:
-  enabled: false             # Set to true to enable heating
-  gpio_pin: 16               # GPIO pin connected to relay (BCM numbering)
-  min_temp_c: 18.0          # Heater turns ON when temperature drops below this
-  max_temp_c: 22.0          # Heater turns OFF when temperature rises above this
-  check_interval: 1.0       # Seconds between temperature checks
-```
+  enabled: true
+  gpio_pin: 16
+  min_temp_c: 18.0
+  max_temp_c: 22.0
 
-**How it works**:
-- Runs on a separate thread monitoring current temperature
-- Uses hysteresis control to prevent rapid relay cycling:
-  - Heater turns ON when temperature < `min_temp_c`
-  - Heater turns OFF when temperature > `max_temp_c`
-  - Stays in current state when temperature is between thresholds
-- GPIO pin goes HIGH when heater is ON, LOW when OFF
-- Automatically disables if GPIO hardware is unavailable
-- Ensures heater is OFF on shutdown
-
-**Wiring**: Connect relay control input to specified GPIO pin. Relay should control heater power circuit (ensure proper electrical isolation and ratings).
-
-**Safety**: Heater is turned OFF on application shutdown or errors. Use appropriate relay ratings and consider additional thermal protection in your heating circuit.
-
-### Humidity Control
-The application supports optional humidity control via GPIO relay to manage an exhaust fan and maintain humidity within a specified range:
-
-**Configuration** (`config.yaml`):
-```yaml
 humidity_control:
-  enabled: false             # Set to true to enable fan control
-  gpio_pin: 20               # GPIO pin connected to relay (BCM numbering)
-  min_humidity: 40.0        # Fan turns OFF when humidity drops below this
-  max_humidity: 60.0        # Fan turns ON when humidity rises above this
-  check_interval: 1.0       # Seconds between humidity checks
+  enabled: true
+  gpio_pin: 20
+  min_humidity: 40.0
+  max_humidity: 60.0
 ```
-
-**How it works**:
-- Runs on a separate thread monitoring current humidity
-- Uses hysteresis control to prevent rapid relay cycling:
-  - Fan turns ON when humidity > `max_humidity`
-  - Fan turns OFF when humidity < `min_humidity`
-  - Stays in current state when humidity is between thresholds
-- GPIO pin goes HIGH when fan is ON, LOW when OFF
-- Automatically disables if GPIO hardware is unavailable
-- Ensures fan is OFF on shutdown
-
-**Wiring**: Connect relay control input to specified GPIO pin. Relay should control fan power circuit (ensure proper electrical isolation and ratings).
-
-**Safety**: Fan is turned OFF on application shutdown or errors. Use appropriate relay ratings for your exhaust fan's power requirements.
 
 ## Common Issues
-| Symptom | Cause | Resolution |
-|--------|-------|-----------|
-| Database not found | Missing `influxdb.database` | Add to `config.yaml` or set `INFLUXDB_DATABASE` |
-| Tags missing | Incorrect JSON in env variable | Ensure `DATA_COLLECTION_TAGS` is valid JSON |
-| 400 errors | Invalid field types or line protocol | Ensure numeric fields only; no empty strings |
-| Queue drops data | Queue size too small | Increase `queue.max_size` |
-| Sensor read errors | Wrong sensor type configured | Verify `sensor.type` matches your hardware (bme280/dht22) |
-| DHT22 timeouts | GPIO pin misconfiguration | Check `sensor.gpio_pin` matches wiring |
-| Service won't start | Config file missing | Ensure `config.yaml` exists in `/opt/filamentcontrol` |
-| Heating not working | GPIO unavailable or disabled | Set `heating_control.enabled: true`, verify GPIO hardware access |
-| Relay cycling rapidly | Thresholds too close | Increase gap between `min_temp_c` and `max_temp_c` (recommend 2-4°C) |
-| Fan not working | GPIO unavailable or disabled | Set `humidity_control.enabled: true`, verify GPIO hardware access |
-| Fan cycling rapidly | Humidity thresholds too close | Increase gap between `min_humidity` and `max_humidity` (recommend 10-20%) |
+
+Quick troubleshooting reference:
+
+| Symptom | Resolution |
+|--------|------------|
+| Database not found | Set `INFLUXDB_DATABASE` in config or environment |
+| Sensor read errors | Verify `sensor.type` in config matches hardware |
+| Service won't start | Check `config.yaml` exists and is valid |
+| Relay cycling rapidly | Increase gap between min/max thresholds |
+
+**For comprehensive troubleshooting, hardware setup, and debugging, see the [Installation Guide](install/INSTALL.md#troubleshooting)**
 
 ## Quick Reference Commands
 ```bash
@@ -433,43 +224,25 @@ humidity_control:
 python -m filamentbox.main
 python -m filamentbox.main --debug
 
-# Or use the convenience launcher script
-python run_filamentbox.py
-python run_filamentbox.py --debug
-
-# Set environment overrides (example)
-export INFLUXDB_HOST=192.168.1.25
-export DATA_COLLECTION_TAGS='{"location": "rack-1"}'
-
-# Inspect persisted DB (SQLite)
-sqlite3 unsent_batches.db '.tables'
-sqlite3 unsent_batches.db 'SELECT COUNT(*) FROM unsent_batches;'
-
-# Manual point enqueue (interactive Python)
-python - <<'PY'
-from filamentbox.influx_writer import enqueue_data_point
-from filamentbox.config import get
-enqueue_data_point({
-  'measurement': get('data_collection.measurement'),
-  'fields': {'temperature_c': 23.4, 'humidity': 45.1},
-  'tags': get('data_collection.tags')
-})
-PY
-
-# Development: run linters, types, and tests
-ruff check .
-ruff format --check .
-mypy filamentbox
-pre-commit run --all-files
-pytest -q
-
 # Service management
 sudo systemctl status filamentbox.service
 sudo systemctl restart filamentbox.service
-sudo journalctl -u filamentbox.service -f --since "10 minutes ago"
+sudo journalctl -u filamentbox.service -f
+
+# Web UI service
+sudo systemctl status filamentbox-webui.service
+sudo journalctl -u filamentbox-webui.service -f
+
+# Development
+ruff check .
+mypy filamentbox
+pytest tests/
 ```
 
-## Project Structure & Architecture
+For more detailed technical information, see:
+- [FilamentBox Core Module](filamentbox/README.md) - Architecture and component details
+- [Tests Documentation](tests/README.md) - Testing guide and coverage
+
 
 ### Module Responsibilities
 - `main.py` - Application entry point, thread orchestration, data collection loop
@@ -497,63 +270,59 @@ Sensor → Read Loop → Validation → Queue → Batch Writer → InfluxDB
 
 ### Setup
 ```bash
+## Development
+
+```bash
 # Install development dependencies
 pip install -r requirements-dev.txt
 
-# Install pre-commit hooks (optional but recommended)
+# Install pre-commit hooks
 pre-commit install
+
+# Run tests
+pytest tests/
+
+# Run linting and type checking
+ruff check .
+mypy filamentbox
 ```
 
-### Workflow
-- Dev dependencies live in `requirements-dev.txt` (includes `-r requirements.txt`)
-- Hooks: `pre-commit install` enables automatic lint and type checks on commit
-- Configuration lives in `pyproject.toml` for ruff/mypy
-- If Git shows "dubious ownership" error: `git config --global --add safe.directory /opt/filamentcontrol`
+See [Tests Documentation](tests/README.md) for detailed testing information and [FilamentBox Core Module](filamentbox/README.md) for architecture details.
 
-### Running Tests
-```bash
-# Run all tests
-pytest
+## Contributing
 
-# Quick test run
-pytest -q
-
-# With coverage
-pytest --cov=filamentbox
-```
+Contributions are welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes with tests
+4. Run the full test suite and linters
+5. Submit a pull request
 
 ## CI/CD
 
-### Continuous Integration
-GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push/PR:
-- Linting (Ruff)
-- Type checking (Mypy)
-- Unit tests (pytest)
-- Python versions: 3.11, 3.12, 3.13
-- Platform: Ubuntu (matches Raspberry Pi target)
+GitHub Actions runs automated checks on every push:
+- Python 3.11, 3.12, 3.13 on Ubuntu
+- Linting with Ruff
+- Type checking with Mypy
+- Full test suite with pytest
 
-### Releases
-1. Tag a commit: `git tag v0.X.Y && git push --tags`
-2. Release workflow (`.github/workflows/release.yml`) automatically:
-   - Runs full CI suite
-   - Creates GitHub Release with autogenerated notes
-   - Attaches source archive
-3. Release Drafter maintains draft releases with categorized notes (see `.github/release-drafter.yml`)
-
-<!-- Version History moved to end of document -->
+Releases are automatically created when tags are pushed.
 
 ## Security Considerations
-- The systemd unit runs as `root` to ensure GPIO access and proper file management under `/opt/filamentcontrol`. If your environment allows, consider using a dedicated service user with appropriate group memberships (e.g., `gpio`, `i2c`) and permissions.
-- Hardening flags enabled:
-  - `ProtectSystem=strict` limits write access to system directories.
-  - `PrivateTmp=true` isolates the service's temporary files.
-  - `ReadWritePaths=/opt/filamentcontrol` grants explicit write access only where needed.
-- Review and adjust `WorkingDirectory`, environment PATH, and writable paths to match your deployment. Ensure `config.yaml` and runtime files reside in permitted locations.
+- The systemd unit runs as `root` to ensure GPIO access and proper file management. 
+- Consider using a dedicated service user with appropriate group memberships (`gpio`, `i2c`) if your environment permits.
+- Hardening flags enabled: `ProtectSystem=strict`, `PrivateTmp=true`, `ReadWritePaths=/opt/filamentcontrol`
 
-## Support & Contributing
-- If something goes wrong or you want a new feature, please open an Issue on GitHub: https://github.com/jdelgado-dtlabs/filamentenvmonitor/issues
-- When filing an issue, include reproduction steps, relevant logs (use `--debug` if possible), environment details (OS, Python version), and any configuration diffs.
-- See `.github/workflows/` for CI configuration and `.pre-commit-config.yaml` for code quality standards.
+## Support
+
+For issues or feature requests, please open an issue on GitHub:
+https://github.com/jdelgado-dtlabs/filamentenvmonitor/issues
+
+When filing issues, include:
+- Reproduction steps
+- Relevant logs (use `--debug` mode)
+- Environment details (OS, Python version)
+- Configuration (sanitized)
 
 ## Version History
 

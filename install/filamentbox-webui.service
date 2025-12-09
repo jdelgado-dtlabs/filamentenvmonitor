@@ -10,7 +10,7 @@ User=root
 Group=root
 WorkingDirectory=/opt/filamentcontrol
 Environment="PATH=/opt/filamentcontrol/filamentcontrol/bin"
-ExecStart=/opt/filamentcontrol/filamentcontrol/bin/python /opt/filamentcontrol/webui_server.py
+ExecStart=/opt/filamentcontrol/filamentcontrol/bin/python /opt/filamentcontrol/webui/webui_server.py
 Restart=on-failure
 RestartSec=5s
 
