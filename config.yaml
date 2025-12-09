@@ -59,3 +59,15 @@ sensor:
   # GPIO pin number for DHT22 sensor (default: 4, corresponds to GPIO4/D4)
   # Only used when type is "dht22"
   gpio_pin: 4
+
+heating_control:
+  # Enable/disable heating control
+  enabled: false
+  # GPIO pin for heating relay (default: 16)
+  gpio_pin: 16
+  # Minimum temperature threshold (°C) - heater turns ON when temp drops below this
+  min_temp_c: 18.0
+  # Maximum temperature threshold (°C) - heater turns OFF when temp rises above this
+  max_temp_c: 22.0
+  # How often to check temperature and update relay state (seconds)
+  check_interval: 1.0

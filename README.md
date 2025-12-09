@@ -13,12 +13,14 @@ A Python 3.13 application for monitoring temperature and humidity in 3D printer 
 ## Highlights (v1.0.0)
 - Production-ready service with automated systemd installer
 - Multi-sensor support: BME280 (I2C) and DHT22 (GPIO)
+- Temperature-controlled heating: GPIO relay control with hysteresis
 - Reliable batching, exponential backoff with jitter, SQLite persistence
 - YAML config with env overrides and lazy loading
 - Full CI/CD: Ruff, Mypy, pytest on Python 3.11–3.13; automated Releases
 
 ## Features
 - **Multi-sensor support**: BME280 (I2C) and DHT22 (GPIO) with automatic detection
+- **Temperature control**: Optional GPIO relay control for heating with configurable thresholds
 - **Reliable data collection**: Configurable intervals with graceful error handling
 - **Batched writes**: Optimized InfluxDB writes with size and time-based flush triggers
 - **Automatic recovery**: SQLite persistence of unsent batches across restarts
@@ -78,6 +80,7 @@ Primary configuration lives in `config.yaml`. Environment variables override sen
 - `retry.backoff_base`, `retry.backoff_max`, `retry.alert_threshold`, `retry.persist_on_alert`
 - `persistence.db_path`, `persistence.max_batches`
 - `sensor.type` ("bme280" or "dht22"), `sensor.sea_level_pressure` (BME280 only), `sensor.gpio_pin` (DHT22 only)
+- `heating_control.enabled` (default: false), `heating_control.gpio_pin` (default: 16), `heating_control.min_temp_c`, `heating_control.max_temp_c`, `heating_control.check_interval`
 
 Environment overrides (via `.env` or shell):
 ```
@@ -202,6 +205,33 @@ enqueue_data_point(point)
 - Look for ERROR logs (stderr) indicating write failures or sensor exceptions.
 - CRITICAL logs indicate unexpected thread termination.
 
+### Temperature Control
+The application supports optional heating control via GPIO relay to maintain temperature within a specified range:
+
+**Configuration** (`config.yaml`):
+```yaml
+heating_control:
+  enabled: false             # Set to true to enable heating
+  gpio_pin: 16               # GPIO pin connected to relay (BCM numbering)
+  min_temp_c: 18.0          # Heater turns ON when temperature drops below this
+  max_temp_c: 22.0          # Heater turns OFF when temperature rises above this
+  check_interval: 1.0       # Seconds between temperature checks
+```
+
+**How it works**:
+- Runs on a separate thread monitoring current temperature
+- Uses hysteresis control to prevent rapid relay cycling:
+  - Heater turns ON when temperature < `min_temp_c`
+  - Heater turns OFF when temperature > `max_temp_c`
+  - Stays in current state when temperature is between thresholds
+- GPIO pin goes HIGH when heater is ON, LOW when OFF
+- Automatically disables if GPIO hardware is unavailable
+- Ensures heater is OFF on shutdown
+
+**Wiring**: Connect relay control input to specified GPIO pin. Relay should control heater power circuit (ensure proper electrical isolation and ratings).
+
+**Safety**: Heater is turned OFF on application shutdown or errors. Use appropriate relay ratings and consider additional thermal protection in your heating circuit.
+
 ## Common Issues
 | Symptom | Cause | Resolution |
 |--------|-------|-----------|
@@ -212,6 +242,8 @@ enqueue_data_point(point)
 | Sensor read errors | Wrong sensor type configured | Verify `sensor.type` matches your hardware (bme280/dht22) |
 | DHT22 timeouts | GPIO pin misconfiguration | Check `sensor.gpio_pin` matches wiring |
 | Service won't start | Config file missing | Ensure `config.yaml` exists in `/opt/filamentcontrol` |
+| Heating not working | GPIO unavailable or disabled | Set `heating_control.enabled: true`, verify GPIO hardware access |
+| Relay cycling rapidly | Thresholds too close | Increase gap between `min_temp_c` and `max_temp_c` (recommend 2-4°C) |
 
 ## Quick Reference Commands
 ```bash
