@@ -1,35 +1,79 @@
 # FilamentBox Configuration
 #
-# Sensitive credentials (username, password) should be set via environment variables:
-#   INFLUXDB_USERNAME
-#   INFLUXDB_PASSWORD
-#   INFLUXDB_HOST (optional, overrides below)
-#   INFLUXDB_PORT (optional, overrides below)
-#
+# Sensitive credentials (username, password) should be set via environment variables.
 # These can be set in a .env file (see .env.example) or via shell environment.
 
-influxdb:
-  host: "influxdb"
-  port: 8086
-  username: "admin"  # Can be overridden by INFLUXDB_USERNAME env var
-  password: "CHANGE_ME"  # MUST be set via INFLUXDB_PASSWORD env var in production
-  database: "influx"     # Name of the InfluxDB database to write into
-  
+# ========================================
+# Data Collection
+# ========================================
 data_collection:
+  # Enable/disable data collection entirely
+  enabled: true
   # Interval between sensor readings (seconds)
   read_interval: 0.25
   # Batch size threshold for writes
   batch_size: 5000
   # Time threshold for writes (seconds)
   flush_interval: 2
-  # Measurement name to write into InfluxDB
+  # Measurement name to write into database
   measurement: "environment"
   # Tags are optional. If omitted or empty, measurements are written without tags.
   # Example (uncomment to use):
   #   tags:
   #     location: "filamentbox"
   #     device: "pi-zero-1"
-  # Tags can also be set via environment variables if needed.
+
+# ========================================
+# Time Series Database Configuration
+# ========================================
+# Supported database types: influxdb, prometheus, timescaledb, victoriametrics, none
+# Set to 'none' to disable data storage (sensor reading only)
+database:
+  type: "influxdb"  # Options: influxdb, prometheus, timescaledb, victoriametrics, none
+
+# InfluxDB Configuration (v1.x)
+# Used when database.type = "influxdb"
+influxdb:
+  host: "influxdb"
+  port: 8086
+  username: "admin"  # Can be overridden by INFLUXDB_USERNAME env var
+  password: "CHANGE_ME"  # MUST be set via INFLUXDB_PASSWORD env var in production
+  database: "influx"     # Name of the InfluxDB database to write into
+  ssl: false
+  verify_ssl: true
+
+# Prometheus Pushgateway Configuration
+# Used when database.type = "prometheus"
+prometheus:
+  gateway_url: "http://pushgateway:9091"
+  job_name: "filamentbox"
+  username: ""  # Optional: PROMETHEUS_USERNAME env var
+  password: ""  # Optional: PROMETHEUS_PASSWORD env var
+  grouping_key:  # Optional additional labels
+    instance: "filamentbox-1"
+
+# TimescaleDB Configuration (PostgreSQL extension)
+# Used when database.type = "timescaledb"
+timescaledb:
+  host: "timescaledb"
+  port: 5432
+  database: "filamentbox"
+  username: "postgres"  # Can be overridden by TIMESCALEDB_USERNAME env var
+  password: "CHANGE_ME"  # MUST be set via TIMESCALEDB_PASSWORD env var in production
+  table_name: "environment"
+  ssl_mode: ""  # Options: disable, allow, prefer, require, verify-ca, verify-full
+
+# VictoriaMetrics Configuration
+# Used when database.type = "victoriametrics"
+victoriametrics:
+  url: "http://victoriametrics:8428"
+  username: ""  # Optional: VICTORIAMETRICS_USERNAME env var
+  password: ""  # Optional: VICTORIAMETRICS_PASSWORD env var
+  timeout: 10
+
+# ========================================
+# System Configuration
+# ========================================
 
 queue:
   # Maximum number of items in the in-memory write queue

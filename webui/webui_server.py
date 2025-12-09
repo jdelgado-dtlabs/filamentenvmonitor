@@ -14,6 +14,7 @@ from flask_cors import CORS
 
 from filamentbox.shared_state import (
     get_control_states,
+    get_database_status,
     get_sensor_data,
     set_fan_manual_override,
     set_heater_manual_override,
@@ -69,6 +70,33 @@ def get_controls() -> Response:
                 "manual": states["fan_manual"],
                 "mode": "manual" if states["fan_manual"] is not None else "auto",
             },
+        }
+    )
+
+
+@app.route("/api/database")
+def get_database() -> Response:
+    """Get current database writer status.
+
+    Returns:
+        JSON with database type, enabled status, writer health, and metrics.
+    """
+    status = get_database_status()
+
+    # Calculate age of last write
+    last_write_age = None
+    if status["last_write_time"]:
+        last_write_age = datetime.now().timestamp() - status["last_write_time"]
+
+    return jsonify(
+        {
+            "type": status["database_type"],
+            "enabled": status["enabled"],
+            "writer_alive": status["writer_alive"],
+            "last_write_time": status["last_write_time"],
+            "last_write_age": last_write_age,
+            "write_failures": status["write_failures"],
+            "storing_data": status["enabled"] and status["database_type"] != "none",
         }
     )
 

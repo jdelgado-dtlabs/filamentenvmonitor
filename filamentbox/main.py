@@ -6,8 +6,6 @@ import queue
 import threading
 import time
 
-from influxdb import InfluxDBClient
-
 from .config import get
 from .heating_control import (
     start_heating_control,
@@ -19,7 +17,7 @@ from .humidity_control import (
     stop_humidity_control,
     update_humidity,
 )
-from .influx_writer import enqueue_data_point, influxdb_writer, wait_for_queue_empty
+from .database_writer import enqueue_data_point, database_writer, wait_for_queue_empty
 from .logging_config import configure_logging
 from .persistence import load_and_flush_persisted_batches
 from .sensor import convert_c_to_f, log_data, read_sensor_data
@@ -135,35 +133,82 @@ def main() -> None:
     # This ensures data durability across reboots.
     try:
         logging.info("Loading persisted batches from previous runs...")
-        client = InfluxDBClient(
-            host=get("influxdb.host"),
-            port=get("influxdb.port"),
-            username=get("influxdb.username"),
-            password=get("influxdb.password"),
-            database=get("influxdb.database"),
-        )
-        # Ensure the InfluxDB database exists. If it doesn't, try to create it.
-        try:
-            db_name = get("influxdb.database")
-            if db_name:
-                client.create_database(db_name)
-                logging.info(f"Ensured InfluxDB database exists: {db_name}")
-        except Exception:
-            logging.debug(
-                "Could not create/ensure InfluxDB database (may already exist or permissions missing)"
-            )
+        from .databases import create_database_adapter
 
-        success, failure = load_and_flush_persisted_batches(client)
-        logging.info(f"Persisted batch recovery: {success} flushed, {failure} failed/pending")
+        # Create database adapter for persistence recovery
+        db_type = get("database.type")
+        db_config = {}
+
+        if db_type == "influxdb":
+            db_config = {
+                "host": get("influxdb.host"),
+                "port": get("influxdb.port"),
+                "username": get("influxdb.username"),
+                "password": get("influxdb.password"),
+                "database": get("influxdb.database"),
+                "ssl": get("influxdb.ssl"),
+                "verify_ssl": get("influxdb.verify_ssl"),
+            }
+            # Ensure the InfluxDB database exists
+            try:
+                from influxdb import InfluxDBClient
+
+                temp_client = InfluxDBClient(
+                    host=db_config["host"],
+                    port=db_config["port"],
+                    username=db_config["username"],
+                    password=db_config["password"],
+                    database=db_config["database"],
+                )
+                temp_client.create_database(db_config["database"])
+                temp_client.close()
+                logging.info(f"Ensured InfluxDB database exists: {db_config['database']}")
+            except Exception:
+                logging.debug("Could not create/ensure InfluxDB database (may already exist)")
+        elif db_type == "prometheus":
+            db_config = {
+                "gateway_url": get("prometheus.gateway_url"),
+                "job_name": get("prometheus.job_name"),
+                "username": get("prometheus.username"),
+                "password": get("prometheus.password"),
+                "grouping_key": get("prometheus.grouping_key"),
+            }
+        elif db_type == "timescaledb":
+            db_config = {
+                "host": get("timescaledb.host"),
+                "port": get("timescaledb.port"),
+                "database": get("timescaledb.database"),
+                "username": get("timescaledb.username"),
+                "password": get("timescaledb.password"),
+                "table_name": get("timescaledb.table_name"),
+                "ssl_mode": get("timescaledb.ssl_mode"),
+            }
+        elif db_type == "victoriametrics":
+            db_config = {
+                "url": get("victoriametrics.url"),
+                "username": get("victoriametrics.username"),
+                "password": get("victoriametrics.password"),
+                "timeout": get("victoriametrics.timeout"),
+            }
+
+        if get("data_collection.enabled") and db_type != "none":
+            db_adapter = create_database_adapter(db_type, db_config)
+            success, failure = load_and_flush_persisted_batches(db_adapter)
+            logging.info(f"Persisted batch recovery: {success} flushed, {failure} failed/pending")
+            db_adapter.close()
+        else:
+            logging.info(
+                "Data collection disabled or database type is 'none' - skipping persistence recovery"
+            )
     except Exception as e:
         logging.exception(f"Error during persisted batch recovery: {e}")
 
     # Start all threads
     threads = []
 
-    # InfluxDB writer thread
+    # Start database writer thread
     writer_thread = threading.Thread(
-        target=influxdb_writer, args=(_stop_event,), daemon=True, name="InfluxDBWriter"
+        target=database_writer, args=(_stop_event,), daemon=True, name="DatabaseWriter"
     )
     writer_thread.start()
     threads.append(writer_thread)
@@ -186,7 +231,7 @@ def main() -> None:
         while True:
             # Monitor thread health for core threads
             if not writer_thread.is_alive():
-                logging.critical("InfluxDB writer thread has exited unexpectedly!")
+                logging.critical("Database writer thread has exited unexpectedly!")
             if not collector_thread.is_alive():
                 logging.critical("Data collector thread has exited unexpectedly!")
             time.sleep(1)

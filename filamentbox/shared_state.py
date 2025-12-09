@@ -21,6 +21,13 @@ _fan_state: bool = False
 _heater_manual_override: Optional[bool] = None
 _fan_manual_override: Optional[bool] = None
 
+# Database status
+_database_type: str = "unknown"
+_database_enabled: bool = False
+_database_writer_alive: bool = False
+_database_last_write_time: Optional[float] = None
+_database_write_failures: int = 0
+
 
 def update_sensor_data(
     temperature_c: Optional[float],
@@ -155,4 +162,47 @@ def get_control_states() -> dict:
             "fan_on": _fan_state,
             "heater_manual": _heater_manual_override,
             "fan_manual": _fan_manual_override,
+        }
+
+
+def update_database_status(
+    db_type: str,
+    enabled: bool,
+    writer_alive: bool,
+    last_write_time: Optional[float] = None,
+    write_failures: int = 0,
+) -> None:
+    """Update database writer status.
+
+    Args:
+        db_type: Type of database (influxdb, prometheus, timescaledb, victoriametrics, none).
+        enabled: Whether data collection is enabled.
+        writer_alive: Whether the database writer thread is running.
+        last_write_time: Unix timestamp of last successful write (optional).
+        write_failures: Number of consecutive write failures.
+    """
+    global _database_type, _database_enabled, _database_writer_alive
+    global _database_last_write_time, _database_write_failures
+    with _state_lock:
+        _database_type = db_type
+        _database_enabled = enabled
+        _database_writer_alive = writer_alive
+        if last_write_time is not None:
+            _database_last_write_time = last_write_time
+        _database_write_failures = write_failures
+
+
+def get_database_status() -> dict:
+    """Get current database writer status.
+
+    Returns:
+        Dictionary with database type, enabled status, writer status, and metrics.
+    """
+    with _state_lock:
+        return {
+            "database_type": _database_type,
+            "enabled": _database_enabled,
+            "writer_alive": _database_writer_alive,
+            "last_write_time": _database_last_write_time,
+            "write_failures": _database_write_failures,
         }

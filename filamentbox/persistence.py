@@ -13,11 +13,6 @@ from typing import Any, Sequence, Tuple
 
 from .config import get
 
-try:
-    from influxdb.exceptions import InfluxDBClientError
-except ImportError:
-    InfluxDBClientError = None
-
 
 _db_path = get("persistence.db_path")
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", _db_path)
@@ -85,11 +80,14 @@ def _prune_old_batches() -> None:
         logging.exception("Failed to prune old persisted batches")
 
 
-def load_and_flush_persisted_batches(client) -> Tuple[int, int]:
+def load_and_flush_persisted_batches(db_adapter) -> Tuple[int, int]:
     """Flush persisted batches (oldest first) removing successful or invalid ones.
 
+    Args:
+        db_adapter: Database adapter instance (TimeSeriesDB implementation)
+
     Returns:
-            (success_count, failure_count) counts of flushed and failed attempts.
+        (success_count, failure_count) counts of flushed and failed attempts.
     """
     _init_db()
     success_count = 0
@@ -102,8 +100,8 @@ def load_and_flush_persisted_batches(client) -> Tuple[int, int]:
         for row_id, batch_json in rows:
             try:
                 batch = json.loads(batch_json)
-                client.write_points(batch)
-                logging.info(f"Flushed persisted batch {row_id} to InfluxDB")
+                db_adapter.write_points(batch)
+                logging.info(f"Flushed persisted batch {row_id} to database")
                 # Remove from database
                 conn = sqlite3.connect(DB_PATH)
                 conn.execute("DELETE FROM unsent_batches WHERE id = ?", (row_id,))
@@ -119,15 +117,11 @@ def load_and_flush_persisted_batches(client) -> Tuple[int, int]:
                 conn.close()
                 failure_count += 1
             except Exception as e:
-                # Check if it's an HTTP 400 error (bad request from InfluxDB)
-                if (
-                    InfluxDBClientError
-                    and isinstance(e, InfluxDBClientError)
-                    and hasattr(e, "code")
-                    and e.code == 400
-                ):
+                # Check if it's an HTTP 400 error (bad request) - database-agnostic
+                error_msg = str(e).lower()
+                if "400" in error_msg or "bad request" in error_msg or "invalid" in error_msg:
                     logging.error(
-                        f"InfluxDB rejected batch {row_id} with HTTP 400 (bad request): {e}; dropping batch"
+                        f"Database rejected batch {row_id} (bad request): {e}; dropping batch"
                     )
                     conn = sqlite3.connect(DB_PATH)
                     conn.execute("DELETE FROM unsent_batches WHERE id = ?", (row_id,))

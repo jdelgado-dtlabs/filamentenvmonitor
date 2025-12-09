@@ -13,3 +13,4 @@ repos:
         files: ^filamentbox/
         additional_dependencies:
           - types-PyYAML
+          - types-requests

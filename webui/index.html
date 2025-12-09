@@ -327,10 +327,15 @@
         async function updateDashboard() {
             try {
                 const data = await fetchData('status');
+                const dbStatus = await fetchData('database');
                 clearError();
 
                 const isStale = data.sensor.age && data.sensor.age > 10;
                 const staleClass = isStale ? 'stale-data' : '';
+
+                // Format database type
+                const dbTypeDisplay = dbStatus.type === 'none' ? 'None - Sensor Only' : 
+                                     dbStatus.type.charAt(0).toUpperCase() + dbStatus.type.slice(1);
 
                 document.getElementById('dashboard').innerHTML = `
                     <div class="card ${staleClass}">
@@ -352,6 +357,43 @@
                                 ${formatValue(data.sensor.humidity, 1)}<span class="reading-unit">%</span>
                             </div>
                         </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2>💾 Database Status</h2>
+                            <span class="status-indicator ${dbStatus.storing_data ? 'status-on' : 'status-off'}">
+                                <span class="status-dot"></span>
+                                ${dbStatus.storing_data ? 'STORING DATA' : 'NOT STORING'}
+                            </span>
+                        </div>
+                        <div class="reading">
+                            <div class="reading-label">Database Type</div>
+                            <div class="reading-value" style="font-size: 1.1rem;">${dbTypeDisplay}</div>
+                        </div>
+                        <div class="reading">
+                            <div class="reading-label">Writer Thread</div>
+                            <div class="reading-value">
+                                <span class="status-indicator ${dbStatus.writer_alive ? 'status-on' : 'status-off'}">
+                                    <span class="status-dot"></span>
+                                    ${dbStatus.writer_alive ? 'RUNNING' : 'STOPPED'}
+                                </span>
+                            </div>
+                        </div>
+                        ${dbStatus.storing_data ? `
+                        <div class="reading">
+                            <div class="reading-label">Last Write</div>
+                            <div class="reading-value" style="font-size: 0.95rem;">
+                                ${dbStatus.last_write_time ? formatAge(dbStatus.last_write_age) : 'Never'}
+                            </div>
+                        </div>
+                        ${dbStatus.write_failures > 0 ? `
+                        <div class="reading">
+                            <div class="reading-label">Write Failures</div>
+                            <div class="reading-value" style="color: #dc3545;">${dbStatus.write_failures}</div>
+                        </div>
+                        ` : ''}
+                        ` : ''}
                     </div>
 
                     <div class="card">
