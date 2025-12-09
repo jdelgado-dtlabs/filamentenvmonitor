@@ -10,7 +10,9 @@
 
 A Python 3.13 application for monitoring temperature and humidity in 3D printer filament storage environments. Supports multiple sensor types (BME280, DHT22) with robust data collection, batching, InfluxDB integration, active environment control, and both CLI and Web UI interfaces.
 
-## Highlights (v1.5)
+## Highlights (v1.6)
+- **Master Installer**: Interactive installation with directory selection and automatic configuration
+- **Version Control**: Smart update system with automatic version detection and graceful upgrades
 - **Web UI**: Modern, responsive browser-based interface with real-time monitoring and control
 - **Production deployment**: Automated installers with OS detection (Debian/Ubuntu, RedHat/CentOS)
 - **Nginx integration**: Automated reverse proxy configuration for Docker and bare metal
@@ -78,6 +80,33 @@ filamentcontrol/
   - DHT22 (GPIO pin, default GPIO4)
 
 ## Installation & Setup
+
+### Quick Installation (Recommended)
+
+The easiest way to install FilamentBox is using the master installer:
+
+```bash
+# Clone or download the repository
+git clone https://github.com/jdelgado-dtlabs/filamentenvmonitor.git
+cd filamentenvmonitor
+
+# Run the master installer
+sudo ./install.sh
+```
+
+The installer will:
+1. Ask for installation directory (default: `/opt/filamentcontrol`)
+2. Create directory structure and copy files
+3. Configure service files with correct paths
+4. Set up virtual environment (if needed)
+5. Install both main and web UI services
+6. Verify all services are running
+7. Show logs if any issues occur
+
+### Manual Installation
+
+If you prefer manual setup:
+
 ```bash
 # Create / activate virtual environment (already present in repository example)
 python -m venv filamentcontrol
@@ -181,40 +210,86 @@ sudo ./install_webui_service.sh
 
 See `webui/README.md` for API documentation and `WEBUI_DEPLOYMENT.md` for complete deployment guide including nginx configuration, HTTPS setup, and troubleshooting.
 
-### As a systemd Service
+## Production Deployment (Systemd Service)
 
-#### Quick Install
+### Quick Install (Recommended)
+The master installer handles everything automatically:
+
 ```bash
-# Run the installation script
-sudo ./install_service.sh
+# Run the master installer
+sudo ./install.sh
 
-# Start the service
-sudo systemctl start filamentbox.service
-
-# View logs
-sudo journalctl -u filamentbox.service -f
+# The installer will:
+# - Ask for installation directory
+# - Copy all files and configure paths
+# - Install both main and web UI services
+# - Verify all services are running
+# - Show logs if any issues occur
 ```
 
-#### Manual Install
+### Manual Service Installation
+
+Install the main application service:
+
 ```bash
-# Copy service file to systemd directory
-sudo cp filamentbox.service /etc/systemd/system/
+# Run the service installer
+sudo ./install_service.sh
 
-# Edit the service file if needed (adjust WorkingDirectory, environment)
-# Note: The unit is configured to run as root (`User=root`, `Group=root`).
-# This is required for GPIO access on some devices and for managing files under `/opt/filamentcontrol`.
-sudo nano /etc/systemd/system/filamentbox.service
+# The installer will:
+# - Detect OS and install required packages
+# - Check for existing service and version
+# - Update if newer version available
+# - Enable and optionally start the service
+```
 
-# Reload systemd and enable the service
-sudo systemctl daemon-reload
-sudo systemctl enable filamentbox.service
+Install the web UI service (requires main service):
+
+```bash
+# Run the web UI installer
+sudo ./install_webui_service.sh
+
+# The installer will:
+# - Check for Flask dependencies
+# - Detect existing installation and version
+# - Configure nginx if installed (Docker or bare metal)
+# - Enable and optionally start the service
+```
+
+### Service Management
+
+```bash
+# Main application
 sudo systemctl start filamentbox.service
-
-# Check service status
+sudo systemctl stop filamentbox.service
+sudo systemctl restart filamentbox.service
 sudo systemctl status filamentbox.service
-
-# View logs
 sudo journalctl -u filamentbox.service -f
+
+# Web UI
+sudo systemctl start filamentbox-webui.service
+sudo systemctl stop filamentbox-webui.service
+sudo systemctl restart filamentbox-webui.service
+sudo systemctl status filamentbox-webui.service
+sudo journalctl -u filamentbox-webui.service -f
+```
+
+### Updating Existing Installation
+
+Both installers support smart updates with version detection:
+
+```bash
+# Update main service
+sudo ./install_service.sh
+# - Detects version difference
+# - Shows what changed (diff view)
+# - Gracefully restarts if service was running
+# - Skips if already up to date
+
+# Update web UI service
+sudo ./install_webui_service.sh
+# - Compares versions
+# - Updates configuration
+# - Restarts service if it was running
 ```
 
 ### Debug Mode

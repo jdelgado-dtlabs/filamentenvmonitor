@@ -5,6 +5,51 @@ All notable changes to the FilamentBox Environment Monitor will be documented in
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2025-12-09
+
+### Added
+- **Master Installer** (`install.sh`)
+  - Interactive directory selection (default `/opt/filamentcontrol`, current directory, or custom path)
+  - Automatic directory creation if needed
+  - Dynamic path configuration for all service files
+  - Orchestrated installation of both main and web UI services
+  - Comprehensive service verification with status checks
+  - Automatic log viewing if any service fails to start
+  - Virtual environment detection and setup guidance
+  - Complete error handling with rollback capability
+- **Version Control System**
+  - Version headers in all service files
+  - Automatic version comparison during updates
+  - Smart update detection (only update if newer version available)
+  - Graceful service restarts during updates
+  - Option to skip update or force reinstall
+  - Preserve service running state across updates
+- **Installation Improvements**
+  - Both installers now support version checking
+  - Automatic detection of existing installations
+  - Visual diff display when service files change
+  - Intelligent service restart handling
+  - OS-specific package management (apt/dnf/yum)
+  - Nginx configuration with path auto-adjustment
+
+### Changed
+- Service files now use full Python interpreter paths
+- Removed shebang from `run_filamentbox.py` (no longer needed)
+- Removed unnecessary executable permissions
+- Enhanced installer output with progress indicators
+- Improved error messages and user guidance
+- Updated both service installers with unified UX
+
+### Fixed
+- Code formatting in `filamentbox_cli.py` for CI compliance
+- Service file path handling for custom installations
+- Directory permission checks during installation
+
+## [1.5.1] - 2025-12-09
+
+### Fixed
+- Code formatting in `filamentbox_cli.py` for CI compliance
+
 ## [1.5.0] - 2025-12-09
 
 ### Added

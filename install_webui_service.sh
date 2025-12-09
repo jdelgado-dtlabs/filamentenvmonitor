@@ -7,7 +7,36 @@ set -e
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
 NC='\033[0m' # No Color
+
+# File paths
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SERVICE_FILE="$SCRIPT_DIR/filamentbox-webui.service"
+INSTALLED_SERVICE="/etc/systemd/system/filamentbox-webui.service"
+
+# Extract version from service file
+get_service_version() {
+    local file=$1
+    grep "^# Version:" "$file" 2>/dev/null | awk '{print $3}'
+}
+
+# Compare version numbers (returns 0 if v1 > v2, 1 if v1 <= v2)
+version_greater() {
+    local v1=$1
+    local v2=$2
+    
+    # If either version is empty, assume update needed
+    [ -z "$v1" ] && return 1
+    [ -z "$v2" ] && return 0
+    
+    # Compare versions using sort -V
+    if [ "$(printf '%s\n' "$v1" "$v2" | sort -V | head -n1)" = "$v2" ] && [ "$v1" != "$v2" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
 
 echo -e "${GREEN}FilamentBox Web UI Service Installer${NC}"
 echo "======================================="
@@ -18,6 +47,49 @@ if [ "$EUID" -ne 0 ]; then
     echo -e "${RED}Error: This script must be run as root${NC}"
     echo "Please run: sudo ./install_webui_service.sh"
     exit 1
+fi
+
+# Check for existing service and version
+SERVICE_RUNNING=false
+NEED_UPDATE=false
+CURRENT_VERSION=""
+NEW_VERSION=$(get_service_version "$SERVICE_FILE")
+
+if [ -f "$INSTALLED_SERVICE" ]; then
+    CURRENT_VERSION=$(get_service_version "$INSTALLED_SERVICE")
+    echo -e "${BLUE}Existing service found${NC}"
+    echo "  Installed version: ${CURRENT_VERSION:-unknown}"
+    echo "  New version:       ${NEW_VERSION:-unknown}"
+    echo
+    
+    if systemctl is-active --quiet filamentbox-webui.service; then
+        SERVICE_RUNNING=true
+        echo -e "${GREEN}Service is currently running${NC}"
+    else
+        echo -e "${YELLOW}Service is installed but not running${NC}"
+    fi
+    
+    if version_greater "$NEW_VERSION" "$CURRENT_VERSION"; then
+        NEED_UPDATE=true
+        echo -e "${YELLOW}Update available!${NC}"
+        echo
+        read -p "Would you like to update the service? (Y/n) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]] && [[ ! -z $REPLY ]]; then
+            echo "Update cancelled."
+            exit 0
+        fi
+    else
+        echo -e "${GREEN}Service is up to date${NC}"
+        echo
+        read -p "Reinstall anyway? (y/N) " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo "Installation cancelled."
+            exit 0
+        fi
+    fi
+    echo
 fi
 
 # Check if main service is installed
@@ -43,9 +115,17 @@ if ! $VENV_PYTHON -c "import flask" 2>/dev/null; then
     echo
 fi
 
+# Stop service if running and updating
+if [ "$SERVICE_RUNNING" = true ] && [ "$NEED_UPDATE" = true ]; then
+    echo "Stopping service for update..."
+    systemctl stop filamentbox-webui.service
+    echo -e "${GREEN}✓ Service stopped${NC}"
+    echo
+fi
+
 # Copy service file
 echo "Installing systemd service file..."
-cp filamentbox-webui.service /etc/systemd/system/
+cp "$SERVICE_FILE" "$INSTALLED_SERVICE"
 echo -e "${GREEN}✓ Service file copied to /etc/systemd/system/${NC}"
 
 # Reload systemd
@@ -59,7 +139,11 @@ systemctl enable filamentbox-webui.service
 echo -e "${GREEN}✓ Service enabled${NC}"
 
 echo
-echo -e "${GREEN}Installation complete!${NC}"
+if [ "$NEED_UPDATE" = true ]; then
+    echo -e "${GREEN}Update complete!${NC}"
+else
+    echo -e "${GREEN}Installation complete!${NC}"
+fi
 echo
 echo "Service Management Commands:"
 echo "  Start:   sudo systemctl start filamentbox-webui.service"
@@ -74,15 +158,35 @@ echo "  http://$(hostname -I | awk '{print $1}'):5000"
 echo
 echo -e "${YELLOW}Note: The main filamentbox.service must be running for the web UI to display data.${NC}"
 echo
-read -p "Would you like to start the service now? (Y/n) " -n 1 -r
-echo
-if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
-    systemctl start filamentbox-webui.service
-    echo -e "${GREEN}✓ Service started${NC}"
+
+# Handle service restart for updates or initial start
+if [ "$NEED_UPDATE" = true ] && [ "$SERVICE_RUNNING" = true ]; then
+    echo "Service was running before update."
+    read -p "Would you like to restart the service now? (Y/n) " -n 1 -r
     echo
-    echo "Checking service status..."
-    sleep 2
-    systemctl status filamentbox-webui.service --no-pager
+    if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
+        systemctl restart filamentbox-webui.service
+        echo -e "${GREEN}✓ Service restarted${NC}"
+        echo
+        echo "Checking service status..."
+        sleep 2
+        systemctl status filamentbox-webui.service --no-pager
+    else
+        echo
+        echo -e "${YELLOW}Service not restarted. To apply changes, run:${NC}"
+        echo "  sudo systemctl restart filamentbox-webui.service"
+    fi
+elif [ "$SERVICE_RUNNING" = false ]; then
+    read -p "Would you like to start the service now? (Y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]] || [[ -z $REPLY ]]; then
+        systemctl start filamentbox-webui.service
+        echo -e "${GREEN}✓ Service started${NC}"
+        echo
+        echo "Checking service status..."
+        sleep 2
+        systemctl status filamentbox-webui.service --no-pager
+    fi
 fi
 
 # Nginx configuration section

@@ -1,3 +1,4 @@
+# Version: 1.6.0
 [Unit]
 Description=3D Printer Filament Storage Environment Monitor
 After=network-online.target
@@ -8,8 +9,8 @@ Type=simple
 User=root
 Group=root
 WorkingDirectory=/opt/filamentcontrol
-Environment="PATH=/opt/filamentcontrol/filamentcontrol/bin:/usr/local/bin:/usr/bin:/bin"
-ExecStart=/opt/filamentcontrol/run_filamentbox.py
+Environment="PATH=/opt/filamentcontrol/filamentcontrol/bin"
+ExecStart=/opt/filamentcontrol/filamentcontrol/bin/python /opt/filamentcontrol/run_filamentbox.py
 Restart=on-failure
 RestartSec=10
 StandardOutput=journal
