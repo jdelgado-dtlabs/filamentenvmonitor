@@ -47,9 +47,9 @@ def get_age_string(timestamp: Optional[float]) -> str:
     if age < 60:
         return f"{age:.0f}s ago"
     elif age < 3600:
-        return f"{age/60:.0f}m ago"
+        return f"{age / 60:.0f}m ago"
     else:
-        return f"{age/3600:.1f}h ago"
+        return f"{age / 3600:.1f}h ago"
 
 
 def draw_ui(stdscr: "curses.window") -> None:
