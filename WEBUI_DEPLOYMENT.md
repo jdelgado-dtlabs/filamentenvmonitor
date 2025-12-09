@@ -15,12 +15,24 @@ This will:
 - Install the systemd service file
 - Enable the service to start on boot
 - Optionally start the service immediately
+- **Detect and configure nginx if installed** (new!)
+  - Supports both Docker and bare metal nginx installations
+  - Automatically finds default configuration directories
+  - Provides interactive configuration editing
+  - Tests and reloads nginx configuration
+
+For manual nginx setup or advanced configuration, see the [Nginx Configuration](#nginx-configuration) section below.
 
 ### 2. Access Web UI
 
 Direct access (without nginx):
 ```
 http://YOUR_PI_IP:5000
+```
+
+With nginx reverse proxy (on standard HTTP port):
+```
+http://YOUR_PI_IP
 ```
 
 ## Service Management
@@ -65,9 +77,55 @@ Using nginx as a reverse proxy provides several benefits:
 - Better performance and caching
 - Access control and authentication options
 
-### Installation
+### Automated Configuration (Recommended)
 
-1. **Install nginx**:
+The installer (`install_webui_service.sh`) can automatically configure nginx for you. It supports:
+- **Docker nginx containers**: Copies configuration to your specified config directory
+- **Bare metal installations**: Detects default directories (sites-available, conf.d) and enables the site
+
+Simply run the installer and follow the nginx configuration prompts:
+```bash
+sudo ./install_webui_service.sh
+```
+
+The installer will:
+1. Ask if nginx is installed on the same machine
+2. Detect installation type (Docker or bare metal)
+3. Find or ask for the configuration directory
+4. Copy and optionally edit the configuration
+5. Test and reload nginx (bare metal only)
+
+### Manual Installation
+
+If you prefer manual setup or need to reconfigure later:
+
+#### For Docker nginx
+
+1. **Copy the configuration**:
+```bash
+cp nginx-filamentbox.conf /path/to/nginx/config/filamentbox.conf
+```
+
+2. **Edit if needed**:
+```bash
+nano /path/to/nginx/config/filamentbox.conf
+```
+
+Update the `server_name` directive:
+```nginx
+server_name your-hostname.local;  # or your IP address
+```
+
+3. **Restart nginx container**:
+```bash
+docker restart nginx
+# or
+docker-compose restart nginx
+```
+
+#### For Bare Metal nginx
+
+1. **Install nginx** (if not already installed):
 ```bash
 sudo apt update
 sudo apt install nginx
