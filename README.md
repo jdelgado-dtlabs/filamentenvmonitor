@@ -153,7 +153,16 @@ Access the web interface at `http://localhost:5000` or `http://YOUR_PI_IP:5000` 
 - Mobile-friendly responsive design
 - No build tools or Node.js required
 
-See `webui/README.md` for detailed documentation and API endpoints.
+**Production Deployment**:
+```bash
+# Install as systemd service
+sudo ./install_webui_service.sh
+
+# Access at http://YOUR_PI_IP:5000
+# Or configure nginx reverse proxy for standard HTTP/HTTPS ports
+```
+
+See `webui/README.md` for API documentation and `WEBUI_DEPLOYMENT.md` for complete deployment guide including nginx configuration, HTTPS setup, and troubleshooting.
 
 ### As a systemd Service
 

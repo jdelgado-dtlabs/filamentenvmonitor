@@ -19,7 +19,7 @@ A modern, responsive web interface for monitoring and controlling the FilamentBo
 
 ## Running the Web UI
 
-### Prerequisites
+### Quick Start (Development)
 
 Install Flask and Flask-CORS:
 
@@ -28,7 +28,7 @@ source filamentcontrol/bin/activate
 pip install Flask Flask-CORS
 ```
 
-### Starting the Server
+Start the server:
 
 ```bash
 # Make sure the main application is running first
@@ -42,6 +42,28 @@ python webui_server.py
 The web interface will be available at: `http://localhost:5000`
 
 Or from other devices on your network: `http://YOUR_PI_IP:5000`
+
+### Production Deployment
+
+For production use with systemd and optional nginx reverse proxy:
+
+```bash
+# Install as systemd service
+sudo ./install_webui_service.sh
+
+# Access directly
+http://YOUR_PI_IP:5000
+
+# Or configure nginx reverse proxy (see WEBUI_DEPLOYMENT.md)
+http://YOUR_PI_IP
+```
+
+See [WEBUI_DEPLOYMENT.md](../WEBUI_DEPLOYMENT.md) for complete deployment documentation including:
+- Systemd service installation and management
+- Nginx reverse proxy configuration
+- HTTPS/SSL setup
+- Firewall configuration
+- Troubleshooting guide
 
 ## API Endpoints
 
