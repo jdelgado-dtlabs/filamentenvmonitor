@@ -126,40 +126,318 @@ def delete_value(db: ConfigDB, key: str):
 
 
 def interactive_menu(db: ConfigDB):
-    """Interactive configuration menu."""
+    """Interactive configuration menu with numbered selections."""
     while True:
         print_header("FilamentBox Configuration Manager")
-        print("1. List all configuration")
-        print("2. List specific section (e.g., database)")
-        print("3. Get configuration value")
-        print("4. Set configuration value")
-        print("5. Delete configuration value")
-        print("6. Exit")
+        print("1. Browse and edit configuration")
+        print("2. Add new configuration value")
+        print("3. Search for a configuration key")
+        print("4. View all configuration")
+        print("5. Exit")
         print()
 
-        choice = input("Select option (1-6): ").strip()
+        choice = input("Select option (1-5): ").strip()
 
         if choice == "1":
-            list_config(db)
+            browse_and_edit_menu(db)
         elif choice == "2":
-            prefix = input("Enter section name (e.g., database, sensor): ").strip()
-            list_config(db, prefix)
+            add_new_value(db)
         elif choice == "3":
-            key = input("Enter configuration key: ").strip()
-            get_value(db, key)
+            search_config(db)
         elif choice == "4":
-            key = input("Enter configuration key: ").strip()
-            description = input("Enter description (optional): ").strip()
-            set_value(db, key, description=description)
+            list_config(db)
+            input("\nPress Enter to continue...")
         elif choice == "5":
-            key = input("Enter configuration key: ").strip()
-            delete_value(db, key)
-        elif choice == "6":
             print("\nGoodbye!")
             break
         else:
-            print("Invalid option")
+            print("Invalid option. Please select 1-5.")
+            input("\nPress Enter to continue...")
 
+
+def browse_and_edit_menu(db: ConfigDB):
+    """Browse configuration by section and edit values."""
+    while True:
+        # Get all sections
+        all_keys = db.list_keys("")
+        if not all_keys:
+            print("\nNo configuration found.")
+            input("\nPress Enter to continue...")
+            return
+
+        sections = {}
+        for key, desc in all_keys:
+            section = key.split(".")[0]
+            if section not in sections:
+                sections[section] = []
+            sections[section].append((key, desc))
+
+        # Display section menu
+        print_header("Configuration Sections")
+        section_list = sorted(sections.keys())
+        for i, section in enumerate(section_list, 1):
+            count = len(sections[section])
+            print(f"{i}. {section.upper()} ({count} settings)")
+        print(f"{len(section_list) + 1}. Back to main menu")
+        print()
+
+        choice = input(f"Select section (1-{len(section_list) + 1}): ").strip()
+
+        try:
+            choice_num = int(choice)
+            if choice_num == len(section_list) + 1:
+                return
+            if 1 <= choice_num <= len(section_list):
+                selected_section = section_list[choice_num - 1]
+                edit_section_menu(db, selected_section, sections[selected_section])
+            else:
+                print(f"Invalid option. Please select 1-{len(section_list) + 1}.")
+                input("\nPress Enter to continue...")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+            input("\nPress Enter to continue...")
+
+
+def edit_section_menu(db: ConfigDB, section: str, keys: list):
+    """Edit values within a specific section."""
+    while True:
+        print_header(f"{section.upper()} Configuration")
+
+        # Display keys with current values
+        for i, (key, desc) in enumerate(keys, 1):
+            value = db.get(key)
+
+            # Mask sensitive values
+            if any(
+                sensitive in key.lower() for sensitive in ["password", "token", "secret", "key"]
+            ):
+                display_value = "********" if value else "(not set)"
+            else:
+                display_value = value if value is not None else "(not set)"
+
+            # Show simplified key (remove section prefix for clarity)
+            simple_key = key.replace(f"{section}.", "", 1)
+            print(f"{i}. {simple_key:<35} = {display_value}")
+            if desc:
+                print(f"   {'':<35}   {desc}")
+
+        print(f"{len(keys) + 1}. Back to sections")
+        print()
+
+        choice = input(f"Select setting to edit (1-{len(keys) + 1}): ").strip()
+
+        try:
+            choice_num = int(choice)
+            if choice_num == len(keys) + 1:
+                return
+            if 1 <= choice_num <= len(keys):
+                selected_key, selected_desc = keys[choice_num - 1]
+                edit_value_menu(db, selected_key, selected_desc)
+            else:
+                print(f"Invalid option. Please select 1-{len(keys) + 1}.")
+                input("\nPress Enter to continue...")
+        except ValueError:
+            print("Invalid input. Please enter a number.")
+            input("\nPress Enter to continue...")
+
+
+def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
+    """Edit a single configuration value."""
+    while True:
+        current_value = db.get(key)
+
+        print_header(f"Edit: {key}")
+        if description:
+            print(f"Description: {description}\n")
+
+        # Mask sensitive values in display
+        is_sensitive = any(
+            sensitive in key.lower() for sensitive in ["password", "token", "secret", "key"]
+        )
+
+        if is_sensitive:
+            display_value = "********" if current_value else "(not set)"
+        else:
+            display_value = current_value if current_value is not None else "(not set)"
+
+        print(f"Current value: {display_value}")
+        if current_value is not None:
+            print(f"Value type: {type(current_value).__name__}")
+        print()
+
+        print("1. Change value")
+        print("2. Delete this setting")
+        print("3. Back")
+        print()
+
+        choice = input("Select option (1-3): ").strip()
+
+        if choice == "1":
+            # Get new value
+            if is_sensitive:
+                new_value = getpass.getpass("Enter new value: ")
+            else:
+                new_value = input("Enter new value: ")
+
+            if not new_value:
+                print("Value cannot be empty")
+                input("\nPress Enter to continue...")
+                continue
+
+            # Type conversion
+            if current_value is not None:
+                # Use same type as existing value
+                try:
+                    if isinstance(current_value, bool):
+                        new_value = new_value.lower() in ["true", "1", "yes", "y"]
+                    elif isinstance(current_value, int):
+                        new_value = int(new_value)
+                    elif isinstance(current_value, float):
+                        new_value = float(new_value)
+                    # else keep as string
+                except ValueError:
+                    print(f"Invalid value for type {type(current_value).__name__}")
+                    input("\nPress Enter to continue...")
+                    continue
+            else:
+                # Try to infer type
+                if new_value.lower() in ["true", "false"]:
+                    new_value = new_value.lower() == "true"
+                elif new_value.isdigit():
+                    new_value = int(new_value)
+                elif new_value.replace(".", "", 1).replace("-", "", 1).isdigit():
+                    try:
+                        new_value = float(new_value)
+                    except ValueError:
+                        pass  # keep as string
+
+            db.set(key, new_value, description)
+            print(f"\n✓ Updated {key}")
+            input("\nPress Enter to continue...")
+            return
+
+        elif choice == "2":
+            confirm = input(f"Delete '{key}'? (yes/no): ").strip().lower()
+            if confirm == "yes":
+                if db.delete(key):
+                    print(f"\n✓ Deleted {key}")
+                    input("\nPress Enter to continue...")
+                    return
+                else:
+                    print(f"\nFailed to delete {key}")
+                    input("\nPress Enter to continue...")
+            else:
+                print("Cancelled")
+                input("\nPress Enter to continue...")
+
+        elif choice == "3":
+            return
+
+        else:
+            print("Invalid option. Please select 1-3.")
+            input("\nPress Enter to continue...")
+
+
+def add_new_value(db: ConfigDB):
+    """Add a new configuration value."""
+    print_header("Add New Configuration")
+
+    key = input("Enter configuration key (e.g., database.influxdb.host): ").strip()
+    if not key:
+        print("Key cannot be empty")
+        input("\nPress Enter to continue...")
+        return
+
+    # Check if key already exists
+    if db.get(key) is not None:
+        print(f"\nWarning: Key '{key}' already exists")
+        overwrite = input("Overwrite? (yes/no): ").strip().lower()
+        if overwrite != "yes":
+            print("Cancelled")
+            input("\nPress Enter to continue...")
+            return
+
+    is_sensitive = any(
+        sensitive in key.lower() for sensitive in ["password", "token", "secret", "key"]
+    )
+
+    if is_sensitive:
+        value = getpass.getpass("Enter value: ")
+    else:
+        value = input("Enter value: ")
+
+    if not value:
+        print("Value cannot be empty")
+        input("\nPress Enter to continue...")
+        return
+
+    description = input("Enter description (optional): ").strip()
+
+    # Type inference
+    if value.lower() in ["true", "false"]:
+        value = value.lower() == "true"
+    elif value.isdigit():
+        value = int(value)
+    elif value.replace(".", "", 1).replace("-", "", 1).isdigit():
+        try:
+            value = float(value)
+        except ValueError:
+            pass  # keep as string
+
+    db.set(key, value, description)
+    print(f"\n✓ Added {key} = {value}")
+    input("\nPress Enter to continue...")
+
+
+def search_config(db: ConfigDB):
+    """Search for configuration keys."""
+    print_header("Search Configuration")
+
+    search_term = input("Enter search term: ").strip().lower()
+    if not search_term:
+        print("Search term cannot be empty")
+        input("\nPress Enter to continue...")
+        return
+
+    all_keys = db.list_keys("")
+    matches = [(key, desc) for key, desc in all_keys if search_term in key.lower()]
+
+    if not matches:
+        print(f"\nNo matches found for '{search_term}'")
+        input("\nPress Enter to continue...")
+        return
+
+    print(f"\nFound {len(matches)} match(es):\n")
+    for i, (key, desc) in enumerate(matches, 1):
+        value = db.get(key)
+
+        # Mask sensitive values
+        if any(sensitive in key.lower() for sensitive in ["password", "token", "secret", "key"]):
+            display_value = "********"
+        else:
+            display_value = value
+
+        print(f"{i}. {key} = {display_value}")
+        if desc:
+            print(f"   {desc}")
+
+    print(f"\n{len(matches) + 1}. Back")
+    print()
+
+    choice = input(f"Select setting to edit (1-{len(matches) + 1}): ").strip()
+
+    try:
+        choice_num = int(choice)
+        if choice_num == len(matches) + 1:
+            return
+        if 1 <= choice_num <= len(matches):
+            selected_key, selected_desc = matches[choice_num - 1]
+            edit_value_menu(db, selected_key, selected_desc)
+        else:
+            print("Invalid option.")
+            input("\nPress Enter to continue...")
+    except ValueError:
+        print("Invalid input.")
         input("\nPress Enter to continue...")
 
 
