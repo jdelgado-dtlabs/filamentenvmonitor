@@ -333,7 +333,40 @@ ensure_pysqlcipher3() {
     
     if ! "$INSTALL_ROOT/filamentcontrol/bin/python" -c "import pysqlcipher3" 2>/dev/null; then
         echo -e "${YELLOW}pysqlcipher3 not found. Installing...${NC}"
+        echo ""
+        
+        # Check for SQLCipher development libraries
+        if ! pkg-config --exists sqlcipher 2>/dev/null; then
+            echo -e "${YELLOW}SQLCipher development libraries not found.${NC}"
+            echo -e "${YELLOW}Installing system dependencies...${NC}"
+            echo ""
+            
+            # Detect package manager and install
+            if command -v apt-get &> /dev/null; then
+                sudo apt-get update
+                sudo apt-get install -y libsqlcipher-dev
+            elif command -v dnf &> /dev/null; then
+                sudo dnf install -y sqlcipher-devel
+            elif command -v yum &> /dev/null; then
+                sudo yum install -y sqlcipher-devel
+            elif command -v pacman &> /dev/null; then
+                sudo pacman -S --noconfirm sqlcipher
+            else
+                echo -e "${RED}Could not detect package manager.${NC}"
+                echo -e "${RED}Please install SQLCipher development libraries manually:${NC}"
+                echo -e "${RED}  Debian/Ubuntu: sudo apt-get install libsqlcipher-dev${NC}"
+                echo -e "${RED}  RHEL/CentOS: sudo yum install sqlcipher-devel${NC}"
+                echo -e "${RED}  Fedora: sudo dnf install sqlcipher-devel${NC}"
+                echo -e "${RED}  Arch: sudo pacman -S sqlcipher${NC}"
+                echo ""
+                return 1
+            fi
+            echo ""
+        fi
+        
+        echo -e "${CYAN}Installing pysqlcipher3 Python package...${NC}"
         "$INSTALL_ROOT/filamentcontrol/bin/pip" install pysqlcipher3
+        echo ""
     else
         echo -e "${GREEN}pysqlcipher3 already installed.${NC}"
     fi
