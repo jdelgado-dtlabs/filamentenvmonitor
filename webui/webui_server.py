@@ -17,10 +17,10 @@ from filamentbox.shared_state import (
     get_database_status,
     get_sensor_data,
     get_thread_status,
+    request_thread_restart,
     set_fan_manual_override,
     set_heater_manual_override,
 )
-from filamentbox.thread_control import restart_thread
 
 # Get the directory where this script is located
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -173,14 +173,23 @@ def restart_thread_endpoint(thread_name: str) -> Union[Response, Tuple[Response,
     Returns:
         JSON with success status and message.
     """
-    success, message = restart_thread(thread_name)
+    # Get current thread status to validate the request
+    threads = get_thread_status()
 
-    if success:
-        logger.info(f"Thread restart requested via API: {thread_name}")
-        return jsonify({"success": True, "message": message})
-    else:
-        logger.warning(f"Thread restart failed via API: {thread_name} - {message}")
-        return jsonify({"success": False, "error": message}), 400
+    if thread_name not in threads:
+        return jsonify({"success": False, "error": f"Unknown thread: {thread_name}"}), 400
+
+    if not threads[thread_name].get("restartable", False):
+        return (
+            jsonify({"success": False, "error": f"Thread '{thread_name}' is not restartable"}),
+            400,
+        )
+
+    # Signal the main process to restart the thread
+    request_thread_restart(thread_name)
+    logger.info(f"Thread restart requested via API: {thread_name}")
+
+    return jsonify({"success": True, "message": f"Restart requested for thread '{thread_name}'"})
 
 
 @app.route("/api/status")

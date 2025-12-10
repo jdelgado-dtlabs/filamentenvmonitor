@@ -25,11 +25,16 @@ from .database_writer import enqueue_data_point, database_writer, wait_for_queue
 from .logging_config import configure_logging
 from .persistence import recover_persisted_batches
 from .sensor import convert_c_to_f, log_data, read_sensor_data
-from .shared_state import update_sensor_data
+from .shared_state import (
+    clear_thread_restart_request,
+    get_thread_restart_requests,
+    update_sensor_data,
+)
 from .thread_control import (
     get_thread_status,
     register_restart_callback,
     register_thread,
+    restart_thread,
 )
 
 # Global stop event shared by all threads
@@ -285,6 +290,18 @@ def main() -> None:
         while True:
             # Update thread status in shared state (for web UI)
             get_thread_status()
+
+            # Check for thread restart requests from web UI
+            restart_requests = get_thread_restart_requests()
+            for thread_name in restart_requests:
+                logging.info(f"Processing restart request for thread: {thread_name}")
+                success, message = restart_thread(thread_name)
+                if success:
+                    logging.info(f"Successfully restarted thread: {thread_name}")
+                else:
+                    logging.error(f"Failed to restart thread {thread_name}: {message}")
+                # Clear the request after processing
+                clear_thread_restart_request(thread_name)
 
             # Monitor thread health for core threads
             if _writer_thread and not _writer_thread.is_alive():

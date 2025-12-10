@@ -37,6 +37,9 @@ _database_write_failures: int = 0
 # Thread status (updated from thread_control module)
 _threads_status: dict = {}
 
+# Thread restart requests (for cross-process restart signaling)
+_thread_restart_requests: dict[str, float] = {}  # thread_name -> timestamp
+
 
 def _write_state() -> None:
     """Write current state to file for inter-process communication."""
@@ -66,6 +69,7 @@ def _write_state() -> None:
                 "write_failures": _database_write_failures,
             },
             "threads": _threads_status,
+            "thread_restart_requests": _thread_restart_requests,
         }
         # Write atomically by writing to temp file then renaming
         temp_file = _STATE_FILE + ".tmp"
@@ -331,3 +335,46 @@ def get_thread_status() -> dict:
     # Fallback to in-process state
     with _state_lock:
         return _threads_status
+
+
+def request_thread_restart(thread_name: str) -> None:
+    """Request a thread restart (cross-process signal).
+
+    Args:
+        thread_name: Name of the thread to restart
+    """
+    import time
+
+    global _thread_restart_requests
+    with _state_lock:
+        _thread_restart_requests[thread_name] = time.time()
+        _write_state()
+
+
+def get_thread_restart_requests() -> dict[str, float]:
+    """Get pending thread restart requests.
+
+    Returns:
+        Dictionary mapping thread names to request timestamps
+    """
+    # Try reading from state file first (for cross-process access)
+    state = _read_state()
+    if state.get("thread_restart_requests"):
+        return state["thread_restart_requests"]
+
+    # Fallback to in-process state
+    with _state_lock:
+        return _thread_restart_requests.copy()
+
+
+def clear_thread_restart_request(thread_name: str) -> None:
+    """Clear a thread restart request after it's been processed.
+
+    Args:
+        thread_name: Name of the thread whose restart request should be cleared
+    """
+    global _thread_restart_requests
+    with _state_lock:
+        if thread_name in _thread_restart_requests:
+            del _thread_restart_requests[thread_name]
+            _write_state()
