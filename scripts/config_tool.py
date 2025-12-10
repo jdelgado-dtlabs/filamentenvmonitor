@@ -22,57 +22,148 @@ CONFIG_SCHEMA = {
     "database": {
         "influxdb": {
             "enabled": {"type": "bool", "desc": "Enable InfluxDB data storage"},
-            "url": {"type": "str", "desc": "InfluxDB server URL"},
-            "token": {"type": "str", "desc": "InfluxDB authentication token", "sensitive": True},
-            "org": {"type": "str", "desc": "InfluxDB organization name"},
-            "bucket": {"type": "str", "desc": "InfluxDB bucket name"},
-            "measurement": {"type": "str", "desc": "InfluxDB measurement name"},
+            "url": {
+                "type": "str",
+                "desc": "InfluxDB server URL",
+                "example": "http://192.168.1.100:8086",
+            },
+            "token": {
+                "type": "str",
+                "desc": "InfluxDB authentication token",
+                "sensitive": True,
+                "example": "your-token-here",
+            },
+            "org": {
+                "type": "str",
+                "desc": "InfluxDB organization name",
+                "example": "myorg",
+            },
+            "bucket": {
+                "type": "str",
+                "desc": "InfluxDB bucket name",
+                "example": "sensors",
+            },
+            "measurement": {
+                "type": "str",
+                "desc": "InfluxDB measurement name",
+                "example": "environment",
+            },
             "tags": {},  # Flexible tags - any key-value pairs allowed
         },
         "sqlite": {
             "enabled": {"type": "bool", "desc": "Enable SQLite data storage"},
-            "path": {"type": "str", "desc": "Path to SQLite database file"},
+            "path": {
+                "type": "str",
+                "desc": "Path to SQLite database file",
+                "example": "/var/lib/filamentbox/data.db",
+            },
         },
     },
     "sensors": {
         "bme280": {
             "enabled": {"type": "bool", "desc": "Enable BME280 sensor"},
-            "i2c_address": {"type": "str", "desc": "I2C address (e.g., 0x76)"},
+            "i2c_address": {
+                "type": "str",
+                "desc": "I2C address",
+                "example": "0x76",
+            },
         },
         "dht22": {
             "enabled": {"type": "bool", "desc": "Enable DHT22 sensor"},
-            "gpio_pin": {"type": "int", "desc": "GPIO pin number"},
+            "gpio_pin": {
+                "type": "int",
+                "desc": "GPIO pin number",
+                "example": "4",
+            },
         },
     },
     "bluetooth": {
         "enabled": {"type": "bool", "desc": "Enable Bluetooth scanning"},
-        "scan_interval": {"type": "int", "desc": "Scan interval in seconds"},
-        "device_timeout": {"type": "int", "desc": "Device timeout in seconds"},
+        "scan_interval": {
+            "type": "int",
+            "desc": "Scan interval in seconds",
+            "example": "60",
+        },
+        "device_timeout": {
+            "type": "int",
+            "desc": "Device timeout in seconds",
+            "example": "300",
+        },
     },
     "webui": {
         "enabled": {"type": "bool", "desc": "Enable web UI"},
-        "host": {"type": "str", "desc": "Web UI host address"},
-        "port": {"type": "int", "desc": "Web UI port number"},
+        "host": {
+            "type": "str",
+            "desc": "Web UI host address",
+            "example": "0.0.0.0",
+        },
+        "port": {
+            "type": "int",
+            "desc": "Web UI port number",
+            "example": "5000",
+        },
     },
     "notifications": {
         "telegram": {
             "enabled": {"type": "bool", "desc": "Enable Telegram notifications"},
-            "bot_token": {"type": "str", "desc": "Telegram bot token", "sensitive": True},
-            "chat_id": {"type": "str", "desc": "Telegram chat ID"},
+            "bot_token": {
+                "type": "str",
+                "desc": "Telegram bot token",
+                "sensitive": True,
+                "example": "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
+            },
+            "chat_id": {
+                "type": "str",
+                "desc": "Telegram chat ID",
+                "example": "123456789",
+            },
         },
         "email": {
             "enabled": {"type": "bool", "desc": "Enable email notifications"},
-            "smtp_host": {"type": "str", "desc": "SMTP server host"},
-            "smtp_port": {"type": "int", "desc": "SMTP server port"},
-            "username": {"type": "str", "desc": "SMTP username"},
-            "password": {"type": "str", "desc": "SMTP password", "sensitive": True},
-            "from_addr": {"type": "str", "desc": "From email address"},
-            "to_addr": {"type": "str", "desc": "To email address"},
+            "smtp_host": {
+                "type": "str",
+                "desc": "SMTP server host",
+                "example": "smtp.gmail.com",
+            },
+            "smtp_port": {
+                "type": "int",
+                "desc": "SMTP server port",
+                "example": "587",
+            },
+            "username": {
+                "type": "str",
+                "desc": "SMTP username",
+                "example": "user@example.com",
+            },
+            "password": {
+                "type": "str",
+                "desc": "SMTP password",
+                "sensitive": True,
+                "example": "app-password",
+            },
+            "from_addr": {
+                "type": "str",
+                "desc": "From email address",
+                "example": "alerts@example.com",
+            },
+            "to_addr": {
+                "type": "str",
+                "desc": "To email address",
+                "example": "admin@example.com",
+            },
         },
     },
     "monitoring": {
-        "interval": {"type": "int", "desc": "Data collection interval in seconds"},
-        "log_level": {"type": "str", "desc": "Logging level (DEBUG, INFO, WARNING, ERROR)"},
+        "interval": {
+            "type": "int",
+            "desc": "Data collection interval in seconds",
+            "example": "60",
+        },
+        "log_level": {
+            "type": "str",
+            "desc": "Logging level",
+            "example": "INFO",
+        },
     },
 }
 
@@ -126,6 +217,27 @@ def get_all_valid_keys(schema: dict, prefix: str = "") -> set[str]:
                 valid_keys.update(get_all_valid_keys(value, full_key))
 
     return valid_keys
+
+
+def get_key_info_from_schema(key: str) -> dict:
+    """Get key information (type, desc, example) from schema."""
+    parts = key.split(".")
+    schema_node = CONFIG_SCHEMA
+
+    try:
+        for part in parts:
+            if part in schema_node:
+                schema_node = schema_node[part]
+            else:
+                return {}
+
+        # If we found a leaf node with 'type', return it
+        if isinstance(schema_node, dict) and "type" in schema_node:
+            return schema_node
+    except (KeyError, TypeError):
+        pass
+
+    return {}
 
 
 def find_similar_key(invalid_key: str, valid_keys: set[str]) -> str | None:
@@ -868,6 +980,12 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
         if description:
             print(f"Description: {description}\n")
 
+        # Get example from schema
+        key_info = get_key_info_from_schema(key)
+        example = key_info.get("example")
+        if example:
+            print(f"Example: {example}\n")
+
         # Mask sensitive values in display
         is_sensitive = any(
             sensitive in key.lower() for sensitive in ["password", "token", "secret", "key"]
@@ -891,11 +1009,16 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
         choice = input("Select option: ").strip().upper()
 
         if choice == "E":
-            # Get new value
-            if is_sensitive:
-                new_value = getpass.getpass("Enter new value: ")
+            # Get new value with example in prompt
+            if example and not is_sensitive:
+                prompt = f"Enter new value (e.g., {example}): "
             else:
-                new_value = input("Enter new value: ")
+                prompt = "Enter new value: "
+
+            if is_sensitive:
+                new_value = getpass.getpass(prompt)
+            else:
+                new_value = input(prompt)
 
             if not new_value:
                 print("Value cannot be empty")
@@ -1070,6 +1193,12 @@ def add_new_value(db: ConfigDB):
 
     print(f"\nConfiguring: {full_key}")
     print(f"Description: {key_info.get('desc', 'No description')}")
+
+    # Show example if available
+    example = key_info.get("example")
+    if example:
+        print(f"Example: {example}")
+
     if existing is not None:
         if key_info.get("sensitive"):
             print("Current value: ********")
@@ -1096,10 +1225,16 @@ def add_new_value(db: ConfigDB):
             input("\nPress Enter to continue...")
             return
     else:
-        if is_sensitive:
-            value = getpass.getpass("Enter value: ")
+        # Show example in prompt for non-sensitive fields
+        if example and not is_sensitive:
+            prompt = f"Enter value (e.g., {example}): "
         else:
-            value = input("Enter value: ")
+            prompt = "Enter value: "
+
+        if is_sensitive:
+            value = getpass.getpass(prompt)
+        else:
+            value = input(prompt)
 
         if not value:
             print("Value cannot be empty")
