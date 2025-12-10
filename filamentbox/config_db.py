@@ -12,7 +12,11 @@ from typing import Any, Optional
 try:
     from pysqlcipher3 import dbapi2 as sqlcipher
 except ImportError:
-    sqlcipher = None
+    try:
+        # Try sqlcipher3 (modern package, Python 3.13+ compatible)
+        from sqlcipher3 import dbapi2 as sqlcipher
+    except ImportError:
+        sqlcipher = None
 
 try:
     import hvac
@@ -196,7 +200,10 @@ class ConfigDB:
             encryption_key: Encryption key (if None, loads from environment, key file, or uses default)
         """
         if sqlcipher is None:
-            raise ImportError("SQLCipher not installed. Install with: pip install pysqlcipher3")
+            raise ImportError(
+                "SQLCipher not installed. Install with: pip install pysqlcipher3 (Python <3.13) "
+                "or pip install sqlcipher3-binary (Python 3.13+)"
+            )
 
         self.db_path = db_path
 

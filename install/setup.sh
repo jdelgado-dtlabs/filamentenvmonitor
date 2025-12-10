@@ -328,11 +328,13 @@ prompt_encryption_key() {
 
 # Function to ensure pysqlcipher3 is installed
 ensure_pysqlcipher3() {
-    echo -e "${CYAN}Checking for pysqlcipher3...${NC}"
+    echo -e "${CYAN}Checking for SQLCipher Python bindings...${NC}"
     cd "$INSTALL_ROOT"
     
-    if ! "$INSTALL_ROOT/filamentcontrol/bin/python" -c "import pysqlcipher3" 2>/dev/null; then
-        echo -e "${YELLOW}pysqlcipher3 not found. Installing...${NC}"
+    # Try pysqlcipher3 first (legacy), then sqlcipher3 (modern)
+    if ! "$INSTALL_ROOT/filamentcontrol/bin/python" -c "import pysqlcipher3" 2>/dev/null && \
+       ! "$INSTALL_ROOT/filamentcontrol/bin/python" -c "import sqlcipher3 as pysqlcipher3" 2>/dev/null; then
+        echo -e "${YELLOW}SQLCipher Python bindings not found. Installing...${NC}"
         echo ""
         
         # Check for SQLCipher development libraries
@@ -364,11 +366,21 @@ ensure_pysqlcipher3() {
             echo ""
         fi
         
-        echo -e "${CYAN}Installing pysqlcipher3 Python package...${NC}"
-        "$INSTALL_ROOT/filamentcontrol/bin/pip" install pysqlcipher3
+        # Check Python version to determine which package to use
+        PYTHON_VERSION=$("$INSTALL_ROOT/filamentcontrol/bin/python" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+        echo -e "${CYAN}Python version: $PYTHON_VERSION${NC}"
+        
+        # For Python 3.13+, use sqlcipher3-binary (pre-built wheels)
+        if "$INSTALL_ROOT/filamentcontrol/bin/python" -c "import sys; sys.exit(0 if sys.version_info >= (3, 13) else 1)" 2>/dev/null; then
+            echo -e "${CYAN}Python 3.13+ detected. Installing sqlcipher3-binary...${NC}"
+            "$INSTALL_ROOT/filamentcontrol/bin/pip" install sqlcipher3-binary
+        else
+            echo -e "${CYAN}Installing pysqlcipher3...${NC}"
+            "$INSTALL_ROOT/filamentcontrol/bin/pip" install pysqlcipher3
+        fi
         echo ""
     else
-        echo -e "${GREEN}pysqlcipher3 already installed.${NC}"
+        echo -e "${GREEN}SQLCipher Python bindings already installed.${NC}"
     fi
     echo ""
 }

@@ -158,7 +158,7 @@ def _try_load_encrypted_config() -> bool:
     global config_db, using_encrypted_db
 
     if not HAS_CONFIG_DB:
-        logging.debug("Encrypted config database not available (pysqlcipher3 not installed)")
+        logging.debug("Encrypted config database not available (SQLCipher not installed)")
         return False
 
     if not os.path.exists(CONFIG_DB_PATH):
