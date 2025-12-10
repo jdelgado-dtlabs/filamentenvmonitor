@@ -24,6 +24,510 @@ CONFIG_YAML="$INSTALL_ROOT/config.yaml"
 ENV_FILE="$INSTALL_ROOT/.env"
 KEY_FILE="$INSTALL_ROOT/.config_key"
 
+# ========================================
+# Function Definitions
+# ========================================
+
+ask_yes_no() {
+    local prompt="$1"
+    local default="${2:-Y}" # Default to Yes if not specified
+    
+    if [[ "$default" =~ ^[Yy]$ ]]; then
+        read -p "$prompt [Y/n]: " response
+        [[ ! "$response" =~ ^[Nn]$ ]]
+    else
+        read -p "$prompt [y/N]: " response
+        [[ "$response" =~ ^[Yy]$ ]]
+    fi
+}
+
+# Function to generate a strong encryption key
+generate_encryption_key() {
+    # Generate a 64-character random key using /dev/urandom
+    # Uses base64 encoding for URL-safe characters
+    ENCRYPTION_KEY=$(head -c 48 /dev/urandom | base64 | tr -d '\n' | tr -d '=' | head -c 64)
+}
+
+# Function to check if Vault is available and configured
+check_vault_available() {
+    # Check if hvac (Vault Python library) is installed
+    if ! python -c "import hvac" 2>/dev/null; then
+        return 1
+    fi
+    
+    # Check if VAULT_ADDR is set
+    if [ -z "$VAULT_ADDR" ]; then
+        return 1
+    fi
+    
+    # Check if authentication is configured (token or approle)
+    if [ -n "$VAULT_TOKEN" ] || ([ -n "$VAULT_ROLE_ID" ] && [ -n "$VAULT_SECRET_ID" ]); then
+        return 0
+    fi
+    
+    return 1
+}
+
+# Function to configure Vault interactively
+configure_vault_interactive() {
+    echo ""
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}HashiCorp Vault Configuration${NC}"
+    echo -e "${BLUE}========================================${NC}"
+    echo ""
+    echo -e "${CYAN}HashiCorp Vault provides enterprise-grade secret management.${NC}"
+    echo ""
+    
+    # Ask if user wants to use Vault
+    if ! ask_yes_no "Do you have a HashiCorp Vault server available?" "N"; then
+        echo ""
+        echo -e "${YELLOW}⚠ Vault not configured${NC}"
+        echo -e "${YELLOW}The encryption key will be stored in a local file:${NC}"
+        echo -e "${YELLOW}  $KEY_FILE${NC}"
+        echo -e "${YELLOW}  (Permissions: 600 - owner read/write only)${NC}"
+        echo ""
+        echo -e "${CYAN}For enhanced security in production, consider using HashiCorp Vault.${NC}"
+        echo -e "${CYAN}See: docs/VAULT_INTEGRATION.md${NC}"
+        echo ""
+        return 1
+    fi
+    
+    echo ""
+    echo -e "${GREEN}Great! Let's configure Vault access.${NC}"
+    echo ""
+    
+    # Check if hvac is installed
+    if ! python -c "import hvac" 2>/dev/null; then
+        echo -e "${YELLOW}HashiCorp Vault Python library (hvac) not installed.${NC}"
+        echo ""
+        if ask_yes_no "Install hvac library now?" "Y"; then
+            pip install hvac
+            echo ""
+        else
+            echo -e "${RED}Cannot use Vault without hvac library.${NC}"
+            echo -e "${YELLOW}Falling back to local file storage.${NC}"
+            echo ""
+            return 1
+        fi
+    fi
+    
+    # Get Vault address
+    echo -e "${CYAN}Vault Server Configuration${NC}"
+    echo ""
+    read -p "Vault server address (e.g., https://vault.example.com:8200): " vault_addr
+    
+    if [ -z "$vault_addr" ]; then
+        echo -e "${RED}Vault address is required.${NC}"
+        echo -e "${YELLOW}Falling back to local file storage.${NC}"
+        echo ""
+        return 1
+    fi
+    
+    export VAULT_ADDR="$vault_addr"
+    
+    # Get authentication method
+    echo ""
+    echo -e "${CYAN}Authentication Method${NC}"
+    echo ""
+    echo "1. Token authentication (simple, for testing)"
+    echo "2. AppRole authentication (recommended for production)"
+    echo ""
+    read -p "Select method (1 or 2): " auth_method
+    
+    if [ "$auth_method" = "1" ]; then
+        read -s -p "Enter Vault token: " vault_token
+        echo ""
+        if [ -z "$vault_token" ]; then
+            echo -e "${RED}Token is required.${NC}"
+            echo -e "${YELLOW}Falling back to local file storage.${NC}"
+            echo ""
+            unset VAULT_ADDR
+            return 1
+        fi
+        export VAULT_TOKEN="$vault_token"
+        
+    elif [ "$auth_method" = "2" ]; then
+        read -p "Enter Role ID: " vault_role_id
+        read -s -p "Enter Secret ID: " vault_secret_id
+        echo ""
+        
+        if [ -z "$vault_role_id" ] || [ -z "$vault_secret_id" ]; then
+            echo -e "${RED}Both Role ID and Secret ID are required.${NC}"
+            echo -e "${YELLOW}Falling back to local file storage.${NC}"
+            echo ""
+            unset VAULT_ADDR
+            return 1
+        fi
+        
+        export VAULT_ROLE_ID="$vault_role_id"
+        export VAULT_SECRET_ID="$vault_secret_id"
+    else
+        echo -e "${RED}Invalid selection.${NC}"
+        echo -e "${YELLOW}Falling back to local file storage.${NC}"
+        echo ""
+        unset VAULT_ADDR
+        return 1
+    fi
+    
+    # Optional namespace
+    echo ""
+    read -p "Vault namespace (optional, press Enter to skip): " vault_namespace
+    if [ -n "$vault_namespace" ]; then
+        export VAULT_NAMESPACE="$vault_namespace"
+    fi
+    
+    echo ""
+    echo -e "${GREEN}✓ Vault configuration complete${NC}"
+    echo ""
+    
+    # Save Vault config for future use
+    echo -e "${CYAN}Saving Vault configuration for persistence...${NC}"
+    echo ""
+    echo -e "${YELLOW}Add these to your shell profile (~/.bashrc or ~/.bash_profile):${NC}"
+    echo ""
+    echo "export VAULT_ADDR='$vault_addr'"
+    if [ -n "$vault_token" ]; then
+        echo "export VAULT_TOKEN='$vault_token'"
+    fi
+    if [ -n "$vault_role_id" ]; then
+        echo "export VAULT_ROLE_ID='$vault_role_id'"
+        echo "export VAULT_SECRET_ID='$vault_secret_id'"
+    fi
+    if [ -n "$vault_namespace" ]; then
+        echo "export VAULT_NAMESPACE='$vault_namespace'"
+    fi
+    echo ""
+    
+    return 0
+}
+
+# Function to save encryption key to HashiCorp Vault
+save_key_to_vault() {
+    echo -e "${CYAN}Attempting to save key to HashiCorp Vault...${NC}"
+    
+    # Use Python to save to Vault
+    python - <<EOF
+import sys
+import os
+import logging
+
+logging.basicConfig(level=logging.INFO)
+
+# Set the encryption key in environment for the save function
+os.environ['FILAMENTBOX_TEMP_KEY'] = '$ENCRYPTION_KEY'
+
+# Import the vault save function
+sys.path.insert(0, '$INSTALL_ROOT')
+from filamentbox.config_db import _save_key_to_vault
+
+# Attempt to save
+if _save_key_to_vault(os.environ['FILAMENTBOX_TEMP_KEY']):
+    sys.exit(0)
+else:
+    sys.exit(1)
+EOF
+    
+    return $?
+}
+
+# Function to save encryption key to secure file
+save_encryption_key() {
+    local vault_saved=false
+    
+    # Check if Vault is available
+    if check_vault_available; then
+        echo -e "${CYAN}HashiCorp Vault detected.${NC}"
+        echo ""
+        
+        if save_key_to_vault; then
+            echo -e "${GREEN}✓ Encryption key saved to HashiCorp Vault${NC}"
+            echo -e "${GREEN}  Path: secret/data/filamentbox/config_key${NC}"
+            vault_saved=true
+        else
+            echo -e "${YELLOW}⚠ Failed to save to Vault, falling back to local file${NC}"
+        fi
+        echo ""
+    fi
+    
+    # Always save to local file as backup/fallback
+    echo -e "${CYAN}Saving encryption key to local file...${NC}"
+    
+    # Write key to file
+    echo "$ENCRYPTION_KEY" > "$KEY_FILE"
+    
+    # Set restrictive permissions (owner read/write only)
+    chmod 600 "$KEY_FILE"
+    
+    if [ "$vault_saved" = true ]; then
+        echo -e "${GREEN}✓ Encryption key also saved to local file (backup)${NC}"
+        echo -e "${GREEN}  Path: $KEY_FILE${NC}"
+        echo -e "${GREEN}  Permissions: 600 (owner read/write only)${NC}"
+    else
+        echo -e "${GREEN}✓ Encryption key saved to local file${NC}"
+        echo -e "${GREEN}  Path: $KEY_FILE${NC}"
+        echo -e "${GREEN}  Permissions: 600 (owner read/write only)${NC}"
+    fi
+    echo ""
+}
+
+# Function to prompt for encryption key
+prompt_encryption_key() {
+    # First, ask about Vault
+    configure_vault_interactive
+    VAULT_CONFIGURED=$?
+    
+    echo ""
+    echo -e "${YELLOW}========================================${NC}"
+    echo -e "${YELLOW}Encryption Key Generation${NC}"
+    echo -e "${YELLOW}========================================${NC}"
+    echo ""
+    echo -e "${CYAN}A strong encryption key will be automatically generated.${NC}"
+    echo -e "${CYAN}This key will be used to encrypt/decrypt your configuration.${NC}"
+    echo ""
+    
+    # Generate a strong random key
+    generate_encryption_key
+    
+    echo -e "${GREEN}Auto-generated encryption key (64 characters):${NC}"
+    echo ""
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${YELLOW}$ENCRYPTION_KEY${NC}"
+    echo -e "${BLUE}========================================${NC}"
+    echo ""
+    echo -e "${RED}CRITICAL - SAVE THIS KEY NOW!${NC}"
+    echo ""
+    echo -e "${YELLOW}Action items:${NC}"
+    echo -e "  1. ${RED}Copy the key above to a secure location${NC}"
+    echo -e "  2. Store it in a password manager or encrypted vault"
+    echo -e "  3. Keep this backup - you'll need it if you lose access to the key"
+    echo ""
+    echo -e "${RED}WARNING:${NC}"
+    echo -e "${RED}  - If you lose this key, you CANNOT recover your configuration${NC}"
+    
+    if [ $VAULT_CONFIGURED -eq 0 ]; then
+        echo -e "${RED}  - The key will be saved to HashiCorp Vault${NC}"
+        echo -e "${RED}  - A backup will also be saved to $KEY_FILE${NC}"
+    else
+        echo -e "${RED}  - The key will be saved to $KEY_FILE${NC}"
+    fi
+    
+    echo -e "${RED}  - Keep backups of the key in a secure location${NC}"
+    echo ""
+    
+    # Wait for user confirmation
+    read -p "Press ENTER after you have saved the key to continue..."
+    echo ""
+    echo -e "${GREEN}Continuing with setup...${NC}"
+    echo ""
+    
+    # Export the key for use by migration/config scripts
+    export FILAMENTBOX_CONFIG_KEY="$ENCRYPTION_KEY"
+}
+
+# Function to ensure pysqlcipher3 is installed
+ensure_pysqlcipher3() {
+    echo -e "${CYAN}Checking for pysqlcipher3...${NC}"
+    cd "$INSTALL_ROOT"
+    
+    if ! python -c "import pysqlcipher3" 2>/dev/null; then
+        echo -e "${YELLOW}pysqlcipher3 not found. Installing...${NC}"
+        pip install pysqlcipher3
+    else
+        echo -e "${GREEN}pysqlcipher3 already installed.${NC}"
+    fi
+    echo ""
+}
+
+# Function to generate systemd service files
+generate_service_files() {
+    echo -e "${CYAN}Generating systemd service files...${NC}"
+    echo ""
+    
+    local service_dir="$INSTALL_ROOT/install"
+    local main_service="$service_dir/filamentbox.service"
+    local webui_service="$service_dir/filamentbox-webui.service"
+    
+    # Determine current user and group
+    local service_user="${SUDO_USER:-$USER}"
+    local service_group=$(id -gn "$service_user")
+    
+    # Determine if Vault is configured
+    local use_vault=false
+    if [ -n "$VAULT_ADDR" ] && ([ -n "$VAULT_TOKEN" ] || ([ -n "$VAULT_ROLE_ID" ] && [ -n "$VAULT_SECRET_ID" ])); then
+        use_vault=true
+    fi
+    
+    # Generate main service file
+    cat > "$main_service" << EOF
+# Version: 2.0.0
+# Auto-generated by setup.sh - Do not edit manually
+# Installation path: $INSTALL_ROOT
+[Unit]
+Description=FilamentBox Environment Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$service_user
+Group=$service_group
+WorkingDirectory=$INSTALL_ROOT
+Environment="PATH=$INSTALL_ROOT/filamentcontrol/bin"
+EOF
+
+    # Add Vault environment variables if configured
+    if [ "$use_vault" = true ]; then
+        cat >> "$main_service" << EOF
+
+# HashiCorp Vault configuration for encryption key
+Environment="VAULT_ADDR=$VAULT_ADDR"
+EOF
+        if [ -n "$VAULT_TOKEN" ]; then
+            cat >> "$main_service" << EOF
+Environment="VAULT_TOKEN=$VAULT_TOKEN"
+EOF
+        fi
+        if [ -n "$VAULT_ROLE_ID" ]; then
+            cat >> "$main_service" << EOF
+Environment="VAULT_ROLE_ID=$VAULT_ROLE_ID"
+Environment="VAULT_SECRET_ID=$VAULT_SECRET_ID"
+EOF
+        fi
+        if [ -n "$VAULT_NAMESPACE" ]; then
+            cat >> "$main_service" << EOF
+Environment="VAULT_NAMESPACE=$VAULT_NAMESPACE"
+EOF
+        fi
+    fi
+    
+    # Complete the service file
+    cat >> "$main_service" << EOF
+
+ExecStart=$INSTALL_ROOT/filamentcontrol/bin/python $INSTALL_ROOT/run_filamentbox.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=$INSTALL_ROOT
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # Generate WebUI service file
+    cat > "$webui_service" << EOF
+# Version: 2.0.0
+# Auto-generated by setup.sh - Do not edit manually
+# Installation path: $INSTALL_ROOT
+[Unit]
+Description=FilamentBox Web UI
+After=network-online.target filamentbox.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=$service_user
+Group=$service_group
+WorkingDirectory=$INSTALL_ROOT
+Environment="PATH=$INSTALL_ROOT/filamentcontrol/bin"
+EOF
+
+    # Add Vault environment variables to WebUI service if configured
+    if [ "$use_vault" = true ]; then
+        cat >> "$webui_service" << EOF
+
+# HashiCorp Vault configuration for encryption key
+Environment="VAULT_ADDR=$VAULT_ADDR"
+EOF
+        if [ -n "$VAULT_TOKEN" ]; then
+            cat >> "$webui_service" << EOF
+Environment="VAULT_TOKEN=$VAULT_TOKEN"
+EOF
+        fi
+        if [ -n "$VAULT_ROLE_ID" ]; then
+            cat >> "$webui_service" << EOF
+Environment="VAULT_ROLE_ID=$VAULT_ROLE_ID"
+Environment="VAULT_SECRET_ID=$VAULT_SECRET_ID"
+EOF
+        fi
+        if [ -n "$VAULT_NAMESPACE" ]; then
+            cat >> "$webui_service" << EOF
+Environment="VAULT_NAMESPACE=$VAULT_NAMESPACE"
+EOF
+        fi
+    fi
+    
+    # Complete the WebUI service file
+    cat >> "$webui_service" << EOF
+
+ExecStart=$INSTALL_ROOT/filamentcontrol/bin/python $INSTALL_ROOT/run_webui.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=$INSTALL_ROOT
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    if [ "$use_vault" = true ]; then
+        echo -e "${GREEN}✓ Service files generated with HashiCorp Vault support${NC}"
+        echo -e "${GREEN}  - filamentbox.service${NC}"
+        echo -e "${GREEN}  - filamentbox-webui.service${NC}"
+        echo ""
+        echo -e "${CYAN}Configuration:${NC}"
+        echo -e "${CYAN}  Installation path: $INSTALL_ROOT${NC}"
+        echo -e "${CYAN}  Service user: $service_user${NC}"
+        echo -e "${CYAN}  Service group: $service_group${NC}"
+        echo -e "${CYAN}  Vault integration: Enabled${NC}"
+    else
+        echo -e "${GREEN}✓ Service files generated (local key file mode)${NC}"
+        echo -e "${GREEN}  - filamentbox.service${NC}"
+        echo -e "${GREEN}  - filamentbox-webui.service${NC}"
+        echo ""
+        echo -e "${CYAN}Configuration:${NC}"
+        echo -e "${CYAN}  Installation path: $INSTALL_ROOT${NC}"
+        echo -e "${CYAN}  Service user: $service_user${NC}"
+        echo -e "${CYAN}  Service group: $service_group${NC}"
+        echo -e "${CYAN}  Key file: $KEY_FILE${NC}"
+    fi
+    echo ""
+    echo -e "${YELLOW}To install the services, run:${NC}"
+    echo -e "${CYAN}  sudo ./install/install_service.sh${NC}"
+    echo -e "${CYAN}  sudo ./install/install_webui_service.sh${NC}"
+    echo ""
+}
+
+# Function to launch interactive config tool
+launch_config_tool() {
+    echo -e "${CYAN}Starting interactive configuration tool...${NC}"
+    echo ""
+    cd "$INSTALL_ROOT"
+    python scripts/config_tool.py --interactive
+    
+    # Generate service files after configuration
+    generate_service_files
+    
+    exit 0
+}
+
+# ========================================
+# Main Script
+# ========================================
+
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}FilamentBox Configuration Manager${NC}"
 echo -e "${BLUE}v2.0 - Encrypted Database${NC}"
@@ -258,504 +762,3 @@ echo ""
 
 # Use config_tool.py for interactive setup
 launch_config_tool
-
-# ========================================
-# Helper Functions
-# ========================================
-
-# Function to ask yes/no question
-ask_yes_no() {
-    local prompt="$1"
-    local default="${2:-Y}" # Default to Yes if not specified
-    
-    if [[ "$default" =~ ^[Yy]$ ]]; then
-        read -p "$prompt [Y/n]: " response
-        [[ ! "$response" =~ ^[Nn]$ ]]
-    else
-        read -p "$prompt [y/N]: " response
-        [[ "$response" =~ ^[Yy]$ ]]
-    fi
-}
-
-# Function to generate a strong encryption key
-generate_encryption_key() {
-    # Generate a 64-character random key using /dev/urandom
-    # Uses base64 encoding for URL-safe characters
-    ENCRYPTION_KEY=$(head -c 48 /dev/urandom | base64 | tr -d '\n' | tr -d '=' | head -c 64)
-}
-
-# Function to configure Vault interactively
-configure_vault_interactive() {
-    echo ""
-    echo -e "${BLUE}========================================${NC}"
-    echo -e "${BLUE}HashiCorp Vault Configuration${NC}"
-    echo -e "${BLUE}========================================${NC}"
-    echo ""
-    echo -e "${CYAN}HashiCorp Vault provides enterprise-grade secret management.${NC}"
-    echo ""
-    
-    # Ask if user wants to use Vault
-    if ! ask_yes_no "Do you have a HashiCorp Vault server available?" "N"; then
-        echo ""
-        echo -e "${YELLOW}⚠ Vault not configured${NC}"
-        echo -e "${YELLOW}The encryption key will be stored in a local file:${NC}"
-        echo -e "${YELLOW}  $KEY_FILE${NC}"
-        echo -e "${YELLOW}  (Permissions: 600 - owner read/write only)${NC}"
-        echo ""
-        echo -e "${CYAN}For enhanced security in production, consider using HashiCorp Vault.${NC}"
-        echo -e "${CYAN}See: docs/VAULT_INTEGRATION.md${NC}"
-        echo ""
-        return 1
-    fi
-    
-    echo ""
-    echo -e "${GREEN}Great! Let's configure Vault access.${NC}"
-    echo ""
-    
-    # Check if hvac is installed
-    if ! python -c "import hvac" 2>/dev/null; then
-        echo -e "${YELLOW}HashiCorp Vault Python library (hvac) not installed.${NC}"
-        echo ""
-        if ask_yes_no "Install hvac library now?" "Y"; then
-            pip install hvac
-            echo ""
-        else
-            echo -e "${RED}Cannot use Vault without hvac library.${NC}"
-            echo -e "${YELLOW}Falling back to local file storage.${NC}"
-            echo ""
-            return 1
-        fi
-    fi
-    
-    # Get Vault address
-    echo -e "${CYAN}Vault Server Configuration${NC}"
-    echo ""
-    read -p "Vault server address (e.g., https://vault.example.com:8200): " vault_addr
-    
-    if [ -z "$vault_addr" ]; then
-        echo -e "${RED}Vault address is required.${NC}"
-        echo -e "${YELLOW}Falling back to local file storage.${NC}"
-        echo ""
-        return 1
-    fi
-    
-    export VAULT_ADDR="$vault_addr"
-    
-    # Get authentication method
-    echo ""
-    echo -e "${CYAN}Authentication Method${NC}"
-    echo ""
-    echo "1. Token authentication (simple, for testing)"
-    echo "2. AppRole authentication (recommended for production)"
-    echo ""
-    read -p "Select method (1 or 2): " auth_method
-    
-    if [ "$auth_method" = "1" ]; then
-        read -s -p "Enter Vault token: " vault_token
-        echo ""
-        if [ -z "$vault_token" ]; then
-            echo -e "${RED}Token is required.${NC}"
-            echo -e "${YELLOW}Falling back to local file storage.${NC}"
-            echo ""
-            unset VAULT_ADDR
-            return 1
-        fi
-        export VAULT_TOKEN="$vault_token"
-        
-    elif [ "$auth_method" = "2" ]; then
-        read -p "Enter Role ID: " vault_role_id
-        read -s -p "Enter Secret ID: " vault_secret_id
-        echo ""
-        
-        if [ -z "$vault_role_id" ] || [ -z "$vault_secret_id" ]; then
-            echo -e "${RED}Both Role ID and Secret ID are required.${NC}"
-            echo -e "${YELLOW}Falling back to local file storage.${NC}"
-            echo ""
-            unset VAULT_ADDR
-            return 1
-        fi
-        
-        export VAULT_ROLE_ID="$vault_role_id"
-        export VAULT_SECRET_ID="$vault_secret_id"
-    else
-        echo -e "${RED}Invalid selection.${NC}"
-        echo -e "${YELLOW}Falling back to local file storage.${NC}"
-        echo ""
-        unset VAULT_ADDR
-        return 1
-    fi
-    
-    # Optional namespace
-    echo ""
-    read -p "Vault namespace (optional, press Enter to skip): " vault_namespace
-    if [ -n "$vault_namespace" ]; then
-        export VAULT_NAMESPACE="$vault_namespace"
-    fi
-    
-    echo ""
-    echo -e "${GREEN}✓ Vault configuration complete${NC}"
-    echo ""
-    
-    # Save Vault config for future use
-    echo -e "${CYAN}Saving Vault configuration for persistence...${NC}"
-    echo ""
-    echo -e "${YELLOW}Add these to your shell profile (~/.bashrc or ~/.bash_profile):${NC}"
-    echo ""
-    echo "export VAULT_ADDR='$vault_addr'"
-    if [ -n "$vault_token" ]; then
-        echo "export VAULT_TOKEN='$vault_token'"
-    fi
-    if [ -n "$vault_role_id" ]; then
-        echo "export VAULT_ROLE_ID='$vault_role_id'"
-        echo "export VAULT_SECRET_ID='$vault_secret_id'"
-    fi
-    if [ -n "$vault_namespace" ]; then
-        echo "export VAULT_NAMESPACE='$vault_namespace'"
-    fi
-    echo ""
-    
-    return 0
-}
-
-# Function to prompt for encryption key
-prompt_encryption_key() {
-    # First, ask about Vault
-    configure_vault_interactive
-    VAULT_CONFIGURED=$?
-    
-    echo ""
-    echo -e "${YELLOW}========================================${NC}"
-    echo -e "${YELLOW}Encryption Key Generation${NC}"
-    echo -e "${YELLOW}========================================${NC}"
-    echo ""
-    echo -e "${CYAN}A strong encryption key will be automatically generated.${NC}"
-    echo -e "${CYAN}This key will be used to encrypt/decrypt your configuration.${NC}"
-    echo ""
-    
-    # Generate a strong random key
-    generate_encryption_key
-    
-    echo -e "${GREEN}Auto-generated encryption key (64 characters):${NC}"
-    echo ""
-    echo -e "${BLUE}========================================${NC}"
-    echo -e "${YELLOW}$ENCRYPTION_KEY${NC}"
-    echo -e "${BLUE}========================================${NC}"
-    echo ""
-    echo -e "${RED}CRITICAL - SAVE THIS KEY NOW!${NC}"
-    echo ""
-    echo -e "${YELLOW}Action items:${NC}"
-    echo -e "  1. ${RED}Copy the key above to a secure location${NC}"
-    echo -e "  2. Store it in a password manager or encrypted vault"
-    echo -e "  3. Keep this backup - you'll need it if you lose access to the key"
-    echo ""
-    echo -e "${RED}WARNING:${NC}"
-    echo -e "${RED}  - If you lose this key, you CANNOT recover your configuration${NC}"
-    
-    if [ $VAULT_CONFIGURED -eq 0 ]; then
-        echo -e "${RED}  - The key will be saved to HashiCorp Vault${NC}"
-        echo -e "${RED}  - A backup will also be saved to $KEY_FILE${NC}"
-    else
-        echo -e "${RED}  - The key will be saved to $KEY_FILE${NC}"
-    fi
-    
-    echo -e "${RED}  - Keep backups of the key in a secure location${NC}"
-    echo ""
-    
-    # Wait for user confirmation
-    read -p "Press ENTER after you have saved the key to continue..."
-    echo ""
-    echo -e "${GREEN}Continuing with setup...${NC}"
-    echo ""
-    
-    # Export the key for use by migration/config scripts
-    export FILAMENTBOX_CONFIG_KEY="$ENCRYPTION_KEY"
-}
-
-# Function to ensure pysqlcipher3 is installed
-ensure_pysqlcipher3() {
-    echo -e "${CYAN}Checking for pysqlcipher3...${NC}"
-    cd "$INSTALL_ROOT"
-    
-    if ! python -c "import pysqlcipher3" 2>/dev/null; then
-        echo -e "${YELLOW}pysqlcipher3 not found. Installing...${NC}"
-        pip install pysqlcipher3
-    else
-        echo -e "${GREEN}pysqlcipher3 already installed.${NC}"
-    fi
-    echo ""
-}
-
-# Function to check if Vault is available and configured
-check_vault_available() {
-    # Check if hvac (Vault Python library) is installed
-    if ! python -c "import hvac" 2>/dev/null; then
-        return 1
-    fi
-    
-    # Check if VAULT_ADDR is set
-    if [ -z "$VAULT_ADDR" ]; then
-        return 1
-    fi
-    
-    # Check if authentication is configured (token or approle)
-    if [ -n "$VAULT_TOKEN" ] || ([ -n "$VAULT_ROLE_ID" ] && [ -n "$VAULT_SECRET_ID" ]); then
-        return 0
-    fi
-    
-    return 1
-}
-
-# Function to save encryption key to HashiCorp Vault
-save_key_to_vault() {
-    echo -e "${CYAN}Attempting to save key to HashiCorp Vault...${NC}"
-    
-    # Use Python to save to Vault
-    python - <<EOF
-import sys
-import os
-import logging
-
-logging.basicConfig(level=logging.INFO)
-
-# Set the encryption key in environment for the save function
-os.environ['FILAMENTBOX_TEMP_KEY'] = '$ENCRYPTION_KEY'
-
-# Import the vault save function
-sys.path.insert(0, '$INSTALL_ROOT')
-from filamentbox.config_db import _save_key_to_vault
-
-# Attempt to save
-if _save_key_to_vault(os.environ['FILAMENTBOX_TEMP_KEY']):
-    sys.exit(0)
-else:
-    sys.exit(1)
-EOF
-    
-    return $?
-}
-
-# Function to save encryption key to secure file
-save_encryption_key() {
-    local vault_saved=false
-    
-    # Check if Vault is available
-    if check_vault_available; then
-        echo -e "${CYAN}HashiCorp Vault detected.${NC}"
-        echo ""
-        
-        if save_key_to_vault; then
-            echo -e "${GREEN}✓ Encryption key saved to HashiCorp Vault${NC}"
-            echo -e "${GREEN}  Path: secret/data/filamentbox/config_key${NC}"
-            vault_saved=true
-        else
-            echo -e "${YELLOW}⚠ Failed to save to Vault, falling back to local file${NC}"
-        fi
-        echo ""
-    fi
-    
-    # Always save to local file as backup/fallback
-    echo -e "${CYAN}Saving encryption key to local file...${NC}"
-    
-    # Write key to file
-    echo "$ENCRYPTION_KEY" > "$KEY_FILE"
-    
-    # Set restrictive permissions (owner read/write only)
-    chmod 600 "$KEY_FILE"
-    
-    if [ "$vault_saved" = true ]; then
-        echo -e "${GREEN}✓ Encryption key also saved to local file (backup)${NC}"
-        echo -e "${GREEN}  Path: $KEY_FILE${NC}"
-        echo -e "${GREEN}  Permissions: 600 (owner read/write only)${NC}"
-    else
-        echo -e "${GREEN}✓ Encryption key saved to local file${NC}"
-        echo -e "${GREEN}  Path: $KEY_FILE${NC}"
-        echo -e "${GREEN}  Permissions: 600 (owner read/write only)${NC}"
-    fi
-    echo ""
-}
-
-# Function to generate systemd service files
-generate_service_files() {
-    echo -e "${CYAN}Generating systemd service files...${NC}"
-    echo ""
-    
-    local service_dir="$INSTALL_ROOT/install"
-    local main_service="$service_dir/filamentbox.service"
-    local webui_service="$service_dir/filamentbox-webui.service"
-    
-    # Determine current user and group
-    local service_user="${SUDO_USER:-$USER}"
-    local service_group=$(id -gn "$service_user")
-    
-    # Determine if Vault is configured
-    local use_vault=false
-    if [ -n "$VAULT_ADDR" ] && ([ -n "$VAULT_TOKEN" ] || ([ -n "$VAULT_ROLE_ID" ] && [ -n "$VAULT_SECRET_ID" ])); then
-        use_vault=true
-    fi
-    
-    # Generate main service file
-    cat > "$main_service" << EOF
-# Version: 2.0.0
-# Auto-generated by setup.sh - Do not edit manually
-# Installation path: $INSTALL_ROOT
-[Unit]
-Description=FilamentBox Environment Monitor
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=$service_user
-Group=$service_group
-WorkingDirectory=$INSTALL_ROOT
-Environment="PATH=$INSTALL_ROOT/filamentcontrol/bin"
-EOF
-
-    # Add Vault environment variables if configured
-    if [ "$use_vault" = true ]; then
-        cat >> "$main_service" << EOF
-
-# HashiCorp Vault configuration for encryption key
-Environment="VAULT_ADDR=$VAULT_ADDR"
-EOF
-        if [ -n "$VAULT_TOKEN" ]; then
-            cat >> "$main_service" << EOF
-Environment="VAULT_TOKEN=$VAULT_TOKEN"
-EOF
-        fi
-        if [ -n "$VAULT_ROLE_ID" ]; then
-            cat >> "$main_service" << EOF
-Environment="VAULT_ROLE_ID=$VAULT_ROLE_ID"
-Environment="VAULT_SECRET_ID=$VAULT_SECRET_ID"
-EOF
-        fi
-        if [ -n "$VAULT_NAMESPACE" ]; then
-            cat >> "$main_service" << EOF
-Environment="VAULT_NAMESPACE=$VAULT_NAMESPACE"
-EOF
-        fi
-    fi
-    
-    # Complete the service file
-    cat >> "$main_service" << EOF
-
-ExecStart=$INSTALL_ROOT/filamentcontrol/bin/python $INSTALL_ROOT/run_filamentbox.py
-Restart=on-failure
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-
-# Security hardening
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=read-only
-ReadWritePaths=$INSTALL_ROOT
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # Generate WebUI service file
-    cat > "$webui_service" << EOF
-# Version: 2.0.0
-# Auto-generated by setup.sh - Do not edit manually
-# Installation path: $INSTALL_ROOT
-[Unit]
-Description=FilamentBox Web UI
-After=network-online.target filamentbox.service
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=$service_user
-Group=$service_group
-WorkingDirectory=$INSTALL_ROOT
-Environment="PATH=$INSTALL_ROOT/filamentcontrol/bin"
-EOF
-
-    # Add Vault environment variables to WebUI service if configured
-    if [ "$use_vault" = true ]; then
-        cat >> "$webui_service" << EOF
-
-# HashiCorp Vault configuration for encryption key
-Environment="VAULT_ADDR=$VAULT_ADDR"
-EOF
-        if [ -n "$VAULT_TOKEN" ]; then
-            cat >> "$webui_service" << EOF
-Environment="VAULT_TOKEN=$VAULT_TOKEN"
-EOF
-        fi
-        if [ -n "$VAULT_ROLE_ID" ]; then
-            cat >> "$webui_service" << EOF
-Environment="VAULT_ROLE_ID=$VAULT_ROLE_ID"
-Environment="VAULT_SECRET_ID=$VAULT_SECRET_ID"
-EOF
-        fi
-        if [ -n "$VAULT_NAMESPACE" ]; then
-            cat >> "$webui_service" << EOF
-Environment="VAULT_NAMESPACE=$VAULT_NAMESPACE"
-EOF
-        fi
-    fi
-    
-    # Complete the WebUI service file
-    cat >> "$webui_service" << EOF
-
-ExecStart=$INSTALL_ROOT/filamentcontrol/bin/python $INSTALL_ROOT/run_webui.py
-Restart=on-failure
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-
-# Security hardening
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=read-only
-ReadWritePaths=$INSTALL_ROOT
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    if [ "$use_vault" = true ]; then
-        echo -e "${GREEN}✓ Service files generated with HashiCorp Vault support${NC}"
-        echo -e "${GREEN}  - filamentbox.service${NC}"
-        echo -e "${GREEN}  - filamentbox-webui.service${NC}"
-        echo ""
-        echo -e "${CYAN}Configuration:${NC}"
-        echo -e "${CYAN}  Installation path: $INSTALL_ROOT${NC}"
-        echo -e "${CYAN}  Service user: $service_user${NC}"
-        echo -e "${CYAN}  Service group: $service_group${NC}"
-        echo -e "${CYAN}  Vault integration: Enabled${NC}"
-    else
-        echo -e "${GREEN}✓ Service files generated (local key file mode)${NC}"
-        echo -e "${GREEN}  - filamentbox.service${NC}"
-        echo -e "${GREEN}  - filamentbox-webui.service${NC}"
-        echo ""
-        echo -e "${CYAN}Configuration:${NC}"
-        echo -e "${CYAN}  Installation path: $INSTALL_ROOT${NC}"
-        echo -e "${CYAN}  Service user: $service_user${NC}"
-        echo -e "${CYAN}  Service group: $service_group${NC}"
-        echo -e "${CYAN}  Key file: $KEY_FILE${NC}"
-    fi
-    echo ""
-    echo -e "${YELLOW}To install the services, run:${NC}"
-    echo -e "${CYAN}  sudo ./install/install_service.sh${NC}"
-    echo -e "${CYAN}  sudo ./install/install_webui_service.sh${NC}"
-    echo ""
-}
-
-# Function to launch interactive config tool
-launch_config_tool() {
-    echo -e "${CYAN}Starting interactive configuration tool...${NC}"
-    echo ""
-    cd "$INSTALL_ROOT"
-    python scripts/config_tool.py --interactive
-    
-    # Generate service files after configuration
-    generate_service_files
-    
-    exit 0
-}
