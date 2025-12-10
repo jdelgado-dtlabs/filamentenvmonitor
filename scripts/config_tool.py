@@ -44,12 +44,17 @@ class ConfigCache:
 
         # Load all configuration into memory
         print("Loading configuration into memory...")
-        all_keys = db.list_keys("")
-        for key, desc in all_keys:
-            value = db.get(key)
+        all_data = db.get_all_with_descriptions()
+        for key, value, desc in all_data:
             self.cache[key] = value
             self.descriptions[key] = desc
-        print(f"Loaded {len(self.cache)} configuration value(s)\n")
+        print(f"Loaded {len(self.cache)} configuration value(s)")
+
+        # If database was opened read-only, we need to be able to switch to read-write
+        # Store db parameters for creating read-write connection when needed
+        self._db_path = db.db_path
+        self._encryption_key = db.encryption_key
+        print()
 
     def get(self, key: str) -> Any:
         """Get a configuration value from cache.
@@ -196,20 +201,29 @@ class ConfigCache:
             return True
 
         try:
+            # If database was opened read-only, create a new read-write connection
+            if self.db.read_only:
+                # Create new read-write database instance for committing
+                write_db = ConfigDB(
+                    db_path=self._db_path, encryption_key=self._encryption_key, read_only=False
+                )
+            else:
+                write_db = self.db
+
             # Apply additions and modifications
             for key in self.additions:
                 value = self.cache[key]
                 desc = self.descriptions.get(key, "")
-                self.cache.set(key, value, desc)
+                write_db.set(key, value, desc)
 
             for key in self.changes.keys():
                 value = self.cache[key]
                 desc = self.descriptions.get(key, "")
-                self.cache.set(key, value, desc)
+                write_db.set(key, value, desc)
 
             # Apply deletions
             for key in self.deletions:
-                self.cache.delete(key)
+                write_db.delete(key)
 
             # Clear change tracking
             self.changes.clear()
@@ -230,10 +244,9 @@ class ConfigCache:
         self.deletions.clear()
         self.additions.clear()
 
-        # Reload from database
-        all_keys = self.db.list_keys("")
-        for key, desc in all_keys:
-            value = self.db.get(key)
+        # Reload from database in one bulk query
+        all_data = self.db.get_all_with_descriptions()
+        for key, value, desc in all_data:
             self.cache[key] = value
             self.descriptions[key] = desc
         print(f"Reloaded {len(self.cache)} configuration value(s)")
@@ -1969,9 +1982,14 @@ def main():
         print(f"Set {CONFIG_DB_KEY_ENV} environment variable or use --key option")
         sys.exit(1)
 
-    # Initialize database
+    # Determine if we need read-write access
+    # Only need read-write for set/delete operations, otherwise read-only is fine
+    read_only = not (args.set or args.delete)
+
+    # Initialize database in read-only mode for reading (avoids WAL files)
+    # Will create read-write connection only when committing changes
     try:
-        db = ConfigDB(db_path=args.db, encryption_key=encryption_key)
+        db = ConfigDB(db_path=args.db, encryption_key=encryption_key, read_only=read_only)
     except Exception as e:
         print(f"Error: Failed to open configuration database: {e}")
         print(f"Make sure the encryption key is correct and database exists at: {args.db}")
