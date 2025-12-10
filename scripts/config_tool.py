@@ -225,6 +225,16 @@ class ConfigCache:
             for key in self.deletions:
                 write_db.delete(key)
 
+            # Touch the database file to update mtime for config_watcher
+            # This ensures the running application detects the change
+            import os
+            import time
+
+            try:
+                os.utime(self._db_path, (time.time(), time.time()))
+            except OSError:
+                pass  # Not critical if this fails
+
             # Clear change tracking
             self.changes.clear()
             self.deletions.clear()

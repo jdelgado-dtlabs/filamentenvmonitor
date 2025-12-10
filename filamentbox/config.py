@@ -147,6 +147,35 @@ def load_config(config_path: Optional[str] = None) -> dict[str, Any]:
 config: Optional[dict[str, Any]] = None
 config_db: Optional[Any] = None  # ConfigDB instance if available
 using_encrypted_db: bool = False
+_config_cache: dict[str, Any] = {}  # Cache for encrypted DB values
+_config_cache_loaded: bool = False
+
+
+def reload_config() -> None:
+    """Reload configuration from encrypted database or YAML file.
+
+    This should be called when the configuration database has been updated
+    to refresh the in-memory cache.
+    """
+    global config, config_db, using_encrypted_db, _config_cache, _config_cache_loaded
+
+    logging.info("Reloading configuration...")
+
+    if using_encrypted_db and config_db is not None:
+        # Reload all values from encrypted database into cache
+        try:
+            _config_cache = config_db.get_all()
+            _config_cache_loaded = True
+            logging.info(f"Reloaded {len(_config_cache)} configuration values from database")
+        except Exception as e:
+            logging.error(f"Failed to reload config from database: {e}")
+    elif config is not None:
+        # Reload YAML configuration
+        try:
+            config = load_config()
+            logging.info("Reloaded YAML configuration")
+        except Exception as e:
+            logging.error(f"Failed to reload YAML config: {e}")
 
 
 def _try_load_encrypted_config() -> bool:
@@ -155,7 +184,7 @@ def _try_load_encrypted_config() -> bool:
     Returns:
         True if encrypted database was loaded successfully, False otherwise
     """
-    global config_db, using_encrypted_db
+    global config_db, using_encrypted_db, _config_cache, _config_cache_loaded
 
     if not HAS_CONFIG_DB:
         logging.debug("Encrypted config database not available (SQLCipher not installed)")
@@ -166,16 +195,20 @@ def _try_load_encrypted_config() -> bool:
         return False
 
     try:
-        config_db = ConfigDB()
-        # Test if we can read from the database
-        _ = config_db.get_all()
+        # Open in read-only mode with cached connection for performance
+        config_db = ConfigDB(read_only=True)
+        # Load all config into cache
+        _config_cache = config_db.get_all()
+        _config_cache_loaded = True
         using_encrypted_db = True
         logging.info(f"Using encrypted configuration database: {CONFIG_DB_PATH}")
+        logging.info(f"Loaded {len(_config_cache)} configuration values into cache")
         return True
     except Exception as e:
         logging.warning(f"Failed to load encrypted config database: {e}")
         logging.warning("Falling back to YAML configuration")
         config_db = None
+        _config_cache_loaded = False
         return False
 
 
@@ -201,6 +234,7 @@ def get(key_path: str, default: Any = None) -> Any:
     """Return config value at dot-separated path or `default` if missing.
 
     Tries encrypted database first, falls back to YAML configuration.
+    Uses in-memory cache for encrypted database for performance.
 
     Examples:
             get('database.influxdb.host') -> '192.168.99.2'
@@ -209,9 +243,9 @@ def get(key_path: str, default: Any = None) -> Any:
     """
     _ensure_config_loaded()
 
-    # Use encrypted database if available
-    if using_encrypted_db and config_db is not None:
-        return config_db.get(key_path, default)
+    # Use encrypted database cache if available
+    if using_encrypted_db and _config_cache_loaded:
+        return _config_cache.get(key_path, default)
 
     # Fall back to YAML
     keys = key_path.split(".")

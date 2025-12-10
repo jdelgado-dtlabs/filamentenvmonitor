@@ -67,6 +67,37 @@ def _on_sensor_type_changed(key: str, value: Any) -> None:
     # The sensor module will reinitialize automatically on next read_sensor_data() call
 
 
+def _on_database_config_changed(key: str, value: Any) -> None:
+    """Handle changes to database configuration."""
+    logging.info(f"Database configuration changed: {key} = {value}")
+    logging.info("Restarting database writer thread to apply new configuration...")
+    success, message = restart_thread("database_writer")
+    if success:
+        logging.info("Database writer thread restarted successfully")
+    else:
+        logging.error(f"Failed to restart database writer: {message}")
+
+
+def _on_heating_config_changed(key: str, value: Any) -> None:
+    """Handle changes to heating control configuration."""
+    logging.info(f"Heating control configuration changed: {key} = {value}")
+    success, message = restart_thread("heating_control")
+    if success:
+        logging.info("Heating control restarted successfully")
+    else:
+        logging.error(f"Failed to restart heating control: {message}")
+
+
+def _on_humidity_config_changed(key: str, value: Any) -> None:
+    """Handle changes to humidity control configuration."""
+    logging.info(f"Humidity control configuration changed: {key} = {value}")
+    success, message = restart_thread("humidity_control")
+    if success:
+        logging.info("Humidity control restarted successfully")
+    else:
+        logging.error(f"Failed to restart humidity control: {message}")
+
+
 def data_collection_cycle() -> None:
     """Continuously read sensor data, validate types, build point, and enqueue.
 
@@ -237,6 +268,29 @@ def main() -> None:
         # Register callbacks for specific configuration keys
         watch("data_collection.read_interval", _on_read_interval_changed)
         watch("sensor.type", _on_sensor_type_changed)
+
+        # Watch database configuration for changes that require thread restart
+        watch("database.type", _on_database_config_changed)
+        watch("database.influxdb.url", _on_database_config_changed)
+        watch("database.influxdb.token", _on_database_config_changed)
+        watch("database.influxdb.org", _on_database_config_changed)
+        watch("database.influxdb.bucket", _on_database_config_changed)
+        watch("database.prometheus.pushgateway_url", _on_database_config_changed)
+        watch("database.timescaledb.host", _on_database_config_changed)
+        watch("database.timescaledb.port", _on_database_config_changed)
+        watch("database.victoriametrics.url", _on_database_config_changed)
+
+        # Watch heating control configuration
+        watch("heating_control.enabled", _on_heating_config_changed)
+        watch("heating_control.gpio_pin", _on_heating_config_changed)
+        watch("heating_control.min_temp", _on_heating_config_changed)
+        watch("heating_control.max_temp", _on_heating_config_changed)
+
+        # Watch humidity control configuration
+        watch("humidity_control.enabled", _on_humidity_config_changed)
+        watch("humidity_control.gpio_pin", _on_humidity_config_changed)
+        watch("humidity_control.min_humidity", _on_humidity_config_changed)
+        watch("humidity_control.max_humidity", _on_humidity_config_changed)
 
         logging.info("Configuration hot-reload enabled (2s check interval)")
     except Exception as e:

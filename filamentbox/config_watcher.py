@@ -40,7 +40,7 @@ def _check_for_changes() -> None:
 
     try:
         # Import here to avoid circular dependency
-        from .config import get
+        from .config import get, reload_config
 
         current_mtime = _get_db_mtime()
 
@@ -53,6 +53,10 @@ def _check_for_changes() -> None:
             return
 
         _last_mtime = current_mtime
+
+        # Reload configuration from database
+        logging.info("Configuration file modified, reloading...")
+        reload_config()
 
         # Get current values for keys we're watching
         changed_keys: Set[str] = set()
