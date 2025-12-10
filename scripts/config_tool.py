@@ -7,10 +7,12 @@ This is the primary way to update configuration after migration.
 
 import argparse
 import getpass
+import json
 import logging
 import os
 import subprocess
 import sys
+from typing import Any
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -22,6 +24,219 @@ from filamentbox.config_schema import (
     get_key_info,
     validate_value,
 )
+
+
+class ConfigCache:
+    """In-memory cache of configuration with change tracking."""
+
+    def __init__(self, db: ConfigDB):
+        """Initialize cache by loading all configuration from database.
+
+        Args:
+            db: ConfigDB instance to load from
+        """
+        self.db = db
+        self.cache: dict[str, Any] = {}
+        self.descriptions: dict[str, str] = {}
+        self.changes: dict[str, tuple[Any, Any]] = {}  # key -> (old_value, new_value)
+        self.deletions: set[str] = set()
+        self.additions: set[str] = set()
+
+        # Load all configuration into memory
+        print("Loading configuration into memory...")
+        all_keys = db.list_keys("")
+        for key, desc in all_keys:
+            value = db.get(key)
+            self.cache[key] = value
+            self.descriptions[key] = desc
+        print(f"Loaded {len(self.cache)} configuration value(s)\n")
+
+    def get(self, key: str) -> Any:
+        """Get a configuration value from cache.
+
+        Args:
+            key: Configuration key
+
+        Returns:
+            Value or None if not found
+        """
+        return self.cache.get(key)
+
+    def set(self, key: str, value: Any, description: str = ""):
+        """Set a configuration value in cache.
+
+        Args:
+            key: Configuration key
+            value: New value
+            description: Optional description
+        """
+        old_value = self.cache.get(key)
+
+        # Track the change
+        if key not in self.cache:
+            # New key
+            self.additions.add(key)
+        elif old_value != value:
+            # Modified existing key
+            if key not in self.changes:
+                # First modification - store original value
+                self.changes[key] = (old_value, value)
+            else:
+                # Subsequent modification - keep original, update new
+                self.changes[key] = (self.changes[key][0], value)
+
+        # Update cache
+        self.cache[key] = value
+        if description:
+            self.descriptions[key] = description
+
+    def delete(self, key: str) -> bool:
+        """Delete a configuration value from cache.
+
+        Args:
+            key: Configuration key
+
+        Returns:
+            True if key existed and was deleted
+        """
+        if key in self.cache:
+            # Track deletion
+            self.deletions.add(key)
+
+            # Remove from cache
+            del self.cache[key]
+            if key in self.descriptions:
+                del self.descriptions[key]
+
+            # Remove from additions if it was just added this session
+            if key in self.additions:
+                self.additions.remove(key)
+
+            # Remove from changes if it was modified this session
+            if key in self.changes:
+                del self.changes[key]
+
+            return True
+        return False
+
+    def list_keys(self, prefix: str = "") -> list[tuple[str, str]]:
+        """List all keys in cache with optional prefix filter.
+
+        Args:
+            prefix: Optional prefix to filter keys
+
+        Returns:
+            List of (key, description) tuples
+        """
+        if prefix:
+            return [
+                (key, self.descriptions.get(key, ""))
+                for key in sorted(self.cache.keys())
+                if key.startswith(prefix)
+            ]
+        else:
+            return [(key, self.descriptions.get(key, "")) for key in sorted(self.cache.keys())]
+
+    def has_changes(self) -> bool:
+        """Check if any changes have been made.
+
+        Returns:
+            True if there are pending changes
+        """
+        return bool(self.changes or self.deletions or self.additions)
+
+    def get_change_summary(self) -> str:
+        """Get a summary of all pending changes.
+
+        Returns:
+            Formatted string describing all changes
+        """
+        lines = []
+
+        if self.additions:
+            lines.append(f"\nAdded ({len(self.additions)}):")
+            for key in sorted(self.additions):
+                value = self.cache[key]
+                # Mask sensitive values
+                if any(s in key.lower() for s in ["password", "token", "secret", "key"]):
+                    display_value = "********"
+                else:
+                    display_value = value
+                lines.append(f"  + {key} = {display_value}")
+
+        if self.changes:
+            lines.append(f"\nModified ({len(self.changes)}):")
+            for key in sorted(self.changes.keys()):
+                old_value, new_value = self.changes[key]
+                # Mask sensitive values
+                if any(s in key.lower() for s in ["password", "token", "secret", "key"]):
+                    display_old = "********"
+                    display_new = "********"
+                else:
+                    display_old = old_value
+                    display_new = new_value
+                lines.append(f"  ~ {key}")
+                lines.append(f"    Old: {display_old}")
+                lines.append(f"    New: {display_new}")
+
+        if self.deletions:
+            lines.append(f"\nDeleted ({len(self.deletions)}):")
+            for key in sorted(self.deletions):
+                lines.append(f"  - {key}")
+
+        return "\n".join(lines) if lines else "\nNo changes made."
+
+    def commit(self) -> bool:
+        """Commit all pending changes to the database.
+
+        Returns:
+            True if changes were committed successfully
+        """
+        if not self.has_changes():
+            return True
+
+        try:
+            # Apply additions and modifications
+            for key in self.additions:
+                value = self.cache[key]
+                desc = self.descriptions.get(key, "")
+                self.cache.set(key, value, desc)
+
+            for key in self.changes.keys():
+                value = self.cache[key]
+                desc = self.descriptions.get(key, "")
+                self.cache.set(key, value, desc)
+
+            # Apply deletions
+            for key in self.deletions:
+                self.cache.delete(key)
+
+            # Clear change tracking
+            self.changes.clear()
+            self.deletions.clear()
+            self.additions.clear()
+
+            return True
+        except Exception as e:
+            print(f"\n⚠️  Error committing changes: {e}")
+            return False
+
+    def discard_changes(self):
+        """Discard all pending changes and reload from database."""
+        print("\nDiscarding changes and reloading from database...")
+        self.cache.clear()
+        self.descriptions.clear()
+        self.changes.clear()
+        self.deletions.clear()
+        self.additions.clear()
+
+        # Reload from database
+        all_keys = self.db.list_keys("")
+        for key, desc in all_keys:
+            value = self.db.get(key)
+            self.cache[key] = value
+            self.descriptions[key] = desc
+        print(f"Reloaded {len(self.cache)} configuration value(s)")
 
 
 # Legacy key mappings: maps old keys to new schema keys
@@ -93,14 +308,14 @@ def find_similar_key(invalid_key: str, valid_keys: set[str]) -> str | None:
     return None
 
 
-def validate_and_fix_keys(db: ConfigDB, auto_fix: bool = False) -> dict[str, str]:
-    """Validate all keys in database against schema and optionally fix them.
+def validate_and_fix_keys(cache: ConfigCache, auto_fix: bool = False) -> dict[str, str]:
+    """Validate all keys in cache against schema and optionally fix them.
 
     Returns:
         Dictionary mapping invalid keys to their suggested replacements
     """
     valid_keys = get_all_keys(CONFIG_SCHEMA)
-    all_db_keys = [key for key, _ in db.list_keys("")]
+    all_db_keys = [key for key, _ in cache.list_keys("")]
 
     invalid_keys = {}
 
@@ -117,10 +332,10 @@ def validate_and_fix_keys(db: ConfigDB, auto_fix: bool = False) -> dict[str, str
         print_header("Auto-fixing Invalid Keys")
         for invalid_key, suggested_key in invalid_keys.items():
             if suggested_key:
-                value = db.get(invalid_key)
+                value = cache.get(invalid_key)
                 print(f"Migrating: {invalid_key} → {suggested_key}")
-                db.set(suggested_key, value)
-                db.delete(invalid_key)
+                cache.set(suggested_key, value)
+                cache.delete(invalid_key)
                 print(f"  ✓ Migrated value: {value}")
             else:
                 print(f"⚠ No suggestion for: {invalid_key} (keeping as-is)")
@@ -129,12 +344,12 @@ def validate_and_fix_keys(db: ConfigDB, auto_fix: bool = False) -> dict[str, str
     return invalid_keys
 
 
-def fix_invalid_keys_menu(db: ConfigDB):
+def fix_invalid_keys_menu(cache: ConfigCache):
     """Interactive menu to fix invalid configuration keys."""
     print_header("Fix Invalid Configuration Keys")
 
     valid_keys = get_all_keys(CONFIG_SCHEMA)
-    all_db_keys = [key for key, _ in db.list_keys("")]
+    all_db_keys = [key for key, _ in cache.list_keys("")]
 
     invalid_keys = {}
     for db_key in all_db_keys:
@@ -153,7 +368,7 @@ def fix_invalid_keys_menu(db: ConfigDB):
     print(f"Found {len(invalid_keys)} invalid key(s):\n")
 
     for i, (invalid_key, suggested_key) in enumerate(invalid_keys.items(), 1):
-        value = db.get(invalid_key)
+        value = cache.get(invalid_key)
         # Mask sensitive values
         if any(s in invalid_key.lower() for s in ["password", "token", "secret", "key"]):
             display_value = "********"
@@ -184,13 +399,13 @@ def fix_invalid_keys_menu(db: ConfigDB):
 
         # Special handling for influxdb.host + influxdb.port → database.influxdb.url
         if "influxdb.host" in invalid_keys and "influxdb.port" in invalid_keys:
-            host = db.get("influxdb.host")
-            port = db.get("influxdb.port")
+            host = cache.get("influxdb.host")
+            port = cache.get("influxdb.port")
             if host and port:
                 url = f"http://{host}:{port}"
-                db.set("database.influxdb.url", url)
-                db.delete("influxdb.host")
-                db.delete("influxdb.port")
+                cache.set("database.influxdb.url", url)
+                cache.delete("influxdb.host")
+                cache.delete("influxdb.port")
                 print(f"✓ Combined: influxdb.host + influxdb.port → database.influxdb.url ({url})")
                 migrated += 2
                 # Remove from invalid_keys so we don't process them again
@@ -204,7 +419,7 @@ def fix_invalid_keys_menu(db: ConfigDB):
         if "data.collection.tags" in invalid_keys:
             import json
 
-            tags_value = db.get("data.collection.tags")
+            tags_value = cache.get("data.collection.tags")
             if tags_value:
                 try:
                     # Parse JSON tags
@@ -218,11 +433,11 @@ def fix_invalid_keys_menu(db: ConfigDB):
                     # Create individual tag keys
                     for tag_name, tag_value in tags_dict.items():
                         tag_key = f"database.influxdb.tags.{tag_name}"
-                        db.set(tag_key, tag_value)
+                        cache.set(tag_key, tag_value)
                         print(f"✓ Migrated tag: {tag_name} → {tag_key} = {tag_value}")
                         migrated += 1
 
-                    db.delete("data.collection.tags")
+                    cache.delete("data.collection.tags")
                     # Remove from invalid_keys
                     invalid_keys = {
                         k: v for k, v in invalid_keys.items() if k != "data.collection.tags"
@@ -236,31 +451,33 @@ def fix_invalid_keys_menu(db: ConfigDB):
             if suggested_key is None:
                 skipped.append(f"{invalid_key} (no suggestion)")
             else:
-                value = db.get(invalid_key)
+                value = cache.get(invalid_key)
 
                 # Special handling for certain conversions
                 if invalid_key == "influxdb.username" and suggested_key == "database.influxdb.org":
                     # Username might not be the org, ask user or use as-is
-                    db.set(suggested_key, value, "InfluxDB organization (migrated from username)")
+                    cache.set(
+                        suggested_key, value, "InfluxDB organization (migrated from username)"
+                    )
                 elif (
                     invalid_key == "influxdb.database"
                     and suggested_key == "database.influxdb.bucket"
                 ):
                     # Database → Bucket naming
-                    db.set(suggested_key, value, "InfluxDB bucket (migrated from database)")
+                    cache.set(suggested_key, value, "InfluxDB bucket (migrated from database)")
                 elif (
                     invalid_key == "influxdb.password"
                     and suggested_key == "database.influxdb.token"
                 ):
                     # Password → Token (might need regeneration)
-                    db.set(suggested_key, value, "InfluxDB token (migrated from password)")
+                    cache.set(suggested_key, value, "InfluxDB token (migrated from password)")
                     print(
                         "⚠ Note: influxdb.password migrated to token - may need to regenerate token"
                     )
                 else:
-                    db.set(suggested_key, value)
+                    cache.set(suggested_key, value)
 
-                db.delete(invalid_key)
+                cache.delete(invalid_key)
                 print(f"✓ Migrated: {invalid_key} → {suggested_key}")
                 migrated += 1
 
@@ -275,7 +492,7 @@ def fix_invalid_keys_menu(db: ConfigDB):
     elif choice == "M":
         # Manual fix
         for invalid_key, suggested_key in invalid_keys.items():
-            value = db.get(invalid_key)
+            value = cache.get(invalid_key)
             print(f"\nInvalid key: {invalid_key}")
             print(f"Value: {value}")
 
@@ -287,11 +504,11 @@ def fix_invalid_keys_menu(db: ConfigDB):
                 action = input("Action (D=delete, S=skip): ").strip().upper()
 
             if action == "M" and suggested_key:
-                db.set(suggested_key, value)
-                db.delete(invalid_key)
+                cache.set(suggested_key, value)
+                cache.delete(invalid_key)
                 print(f"✓ Migrated to: {suggested_key}")
             elif action == "D":
-                db.delete(invalid_key)
+                cache.delete(invalid_key)
                 print(f"✓ Deleted: {invalid_key}")
             else:
                 print(f"Skipped: {invalid_key}")
@@ -304,7 +521,7 @@ def fix_invalid_keys_menu(db: ConfigDB):
         confirm = input(f"Delete all {len(invalid_keys)} invalid key(s)? (yes/no): ")
         if confirm.lower() == "yes":
             for invalid_key in invalid_keys.keys():
-                db.delete(invalid_key)
+                cache.delete(invalid_key)
             print(f"\n✓ Deleted {len(invalid_keys)} key(s)")
         else:
             print("\nCancelled")
@@ -320,11 +537,11 @@ def print_header(text: str):
     print("=" * 60 + "\n")
 
 
-def list_config(db: ConfigDB, prefix: str = ""):
+def list_config(cache: ConfigCache, prefix: str = ""):
     """List configuration values."""
     print_header("Configuration Settings")
 
-    keys = db.list_keys(prefix)
+    keys = cache.list_keys(prefix)
     if not keys:
         print("No configuration found.")
         return
@@ -340,7 +557,7 @@ def list_config(db: ConfigDB, prefix: str = ""):
     for section, items in sorted(sections.items()):
         print(f"\n[{section.upper()}]")
         for key, desc in items:
-            value = db.get(key)
+            value = cache.get(key)
             # Mask sensitive values
             if any(
                 sensitive in key.lower() for sensitive in ["password", "token", "secret", "key"]
@@ -354,11 +571,10 @@ def list_config(db: ConfigDB, prefix: str = ""):
                 print(f"  {'':<40}   ({desc})")
 
 
-def get_value(db: ConfigDB, key: str):
+def get_value(cache: ConfigCache, key: str):
     """Get a single configuration value."""
-    import json
 
-    value = db.get(key)
+    value = cache.get(key)
     if value is None:
         print(f"Configuration key '{key}' not found")
         return
@@ -370,12 +586,11 @@ def get_value(db: ConfigDB, key: str):
         print(f"\n{key} = {value}")
 
 
-def set_value(db: ConfigDB, key: str, value: str = None, description: str = ""):
+def set_value(cache: ConfigCache, key: str, value: str = None, description: str = ""):
     """Set a configuration value interactively."""
-    import json
 
     # Determine value type from existing config or ask user
-    existing = db.get(key)
+    existing = cache.get(key)
 
     if value is None:
         # Interactive mode
@@ -403,7 +618,7 @@ def set_value(db: ConfigDB, key: str, value: str = None, description: str = ""):
     try:
         parsed_value = json.loads(value)
         # Successfully parsed JSON - use it
-        db.set(key, parsed_value, description)
+        cache.set(key, parsed_value, description)
         if isinstance(parsed_value, dict):
             print(f"✓ Set {key} = {json.dumps(parsed_value)}")
         else:
@@ -436,29 +651,29 @@ def set_value(db: ConfigDB, key: str, value: str = None, description: str = ""):
             value = float(value)
         # else keep as string
 
-    db.set(key, value, description)
+    cache.set(key, value, description)
     print(f"✓ Set {key} = {value}")
 
 
-def delete_value(db: ConfigDB, key: str):
+def delete_value(cache: ConfigCache, key: str):
     """Delete a configuration value."""
     confirm = input(f"Are you sure you want to delete '{key}'? (yes/no): ")
     if confirm.lower() != "yes":
         print("Cancelled")
         return
 
-    if db.delete(key):
+    if cache.delete(key):
         print(f"✓ Deleted {key}")
     else:
         print(f"Configuration key '{key}' not found")
 
 
-def show_database_status(db: ConfigDB):
+def show_database_status(cache: ConfigCache):
     """Display current database configuration status."""
     print_header("Database Configuration Status")
 
     # Get active database type
-    active_db = db.get("database.type")
+    active_db = cache.get("database.type")
 
     db_info = {
         "influxdb": {
@@ -513,7 +728,7 @@ def show_database_status(db: ConfigDB):
 
     for key in info["keys"]:
         full_key = f"database.{active_db}.{key}"
-        value = db.get(full_key)
+        value = cache.get(full_key)
         key_info = get_key_info(full_key)
         is_required = key_info.get("required", False)
         is_sensitive = key_info.get("sensitive", False)
@@ -567,7 +782,7 @@ def show_database_status(db: ConfigDB):
         configured_keys = []
         for key in db_info[db_type]["keys"]:
             full_key = f"database.{db_type}.{key}"
-            if db.get(full_key) is not None:
+            if cache.get(full_key) is not None:
                 configured_keys.append(key)
 
         if configured_keys:
@@ -581,7 +796,7 @@ def show_database_status(db: ConfigDB):
         print("by changing the 'database.type' setting.")
 
 
-def reset_to_defaults(db: ConfigDB):
+def reset_to_defaults(cache: ConfigCache):
     """Reset all configuration to default values with confirmation."""
     print_header("Reset Configuration to Defaults")
     print()
@@ -621,11 +836,11 @@ def reset_to_defaults(db: ConfigDB):
     print("Deleting all configuration...")
 
     # Delete all existing configuration
-    all_keys = db.list_keys("")
+    all_keys = cache.list_keys("")
     deleted_count = 0
     for key, _ in all_keys:  # list_keys returns (key, description) tuples
         try:
-            db.delete(key)
+            cache.delete(key)
             deleted_count += 1
         except Exception as e:
             print(f"  Warning: Failed to delete {key}: {e}")
@@ -639,9 +854,9 @@ def reset_to_defaults(db: ConfigDB):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     populate_script = os.path.join(script_dir, "populate_defaults.py")
 
-    # Get database path and encryption key from the ConfigDB instance
-    db_path = db.db_path
-    encryption_key = db.encryption_key
+    # Get database path and encryption key from the ConfigCache's db instance
+    db_path = cache.db.db_path
+    encryption_key = cache.db.encryption_key
 
     try:
         # Run populate_defaults.py
@@ -654,6 +869,9 @@ def reset_to_defaults(db: ConfigDB):
 
         # Show output
         print(result.stdout)
+
+        # Reload cache from database
+        cache.discard_changes()
 
         print("✓ Configuration reset to defaults successfully!")
         print()
@@ -673,10 +891,16 @@ def reset_to_defaults(db: ConfigDB):
     input("\nPress Enter to continue...")
 
 
-def interactive_menu(db: ConfigDB):
+def interactive_menu(cache: ConfigCache):
     """Interactive configuration menu with letter-based commands."""
     while True:
         print_header("FilamentBox Configuration Manager")
+
+        # Show pending changes indicator
+        if cache.has_changes():
+            changes_count = len(cache.additions) + len(cache.changes) + len(cache.deletions)
+            print(f"⚠️  {changes_count} pending change(s) - not yet saved to database\n")
+
         print("B - Browse and edit configuration")
         print("N - Add new configuration value")
         print("D - Database status and configuration")
@@ -684,45 +908,108 @@ def interactive_menu(db: ConfigDB):
         print("V - View all configuration")
         print("F - Fix invalid configuration keys")
         print("R - Reset to defaults (⚠️  deletes all config)")
+        if cache.has_changes():
+            print("C - Commit changes to database")
+            print("X - Discard all changes")
         print("Q - Quit")
         print()
 
         choice = input("Select option: ").strip().upper()
 
         if choice == "B":
-            browse_and_edit_menu(db)
+            browse_and_edit_menu(cache)
         elif choice == "N":
-            add_new_value(db)
+            add_new_value(cache)
         elif choice == "D":
-            show_database_status(db)
+            show_database_status(cache)
             input("\nPress Enter to continue...")
         elif choice == "S":
-            search_config(db)
+            search_config(cache)
         elif choice == "V":
-            list_config(db)
+            list_config(cache)
             input("\nPress Enter to continue...")
         elif choice == "F":
-            fix_invalid_keys_menu(db)
+            fix_invalid_keys_menu(cache)
         elif choice == "R":
-            reset_to_defaults(db)
+            reset_to_defaults(cache)
+        elif choice == "C" and cache.has_changes():
+            # Commit changes
+            print_header("Commit Changes to Database")
+            print(cache.get_change_summary())
+            print()
+            confirm = input("Commit these changes to database? (yes/no): ").strip().lower()
+            if confirm == "yes":
+                if cache.commit():
+                    print("\n✓ Changes committed successfully!")
+                else:
+                    print("\n✗ Failed to commit changes")
+            else:
+                print("\nCommit cancelled")
+            input("\nPress Enter to continue...")
+        elif choice == "X" and cache.has_changes():
+            # Discard changes
+            print_header("Discard Changes")
+            print(cache.get_change_summary())
+            print()
+            confirm = input("Discard all these changes? (yes/no): ").strip().lower()
+            if confirm == "yes":
+                cache.discard_changes()
+                print("\n✓ Changes discarded, configuration reloaded")
+            else:
+                print("\nDiscard cancelled")
+            input("\nPress Enter to continue...")
         elif choice == "Q":
-            print("\nGoodbye!")
-            break
+            # Exit - check for pending changes
+            if cache.has_changes():
+                print_header("Exit Configuration Tool")
+                print(cache.get_change_summary())
+                print()
+                print("Options:")
+                print("1 - Commit changes and exit")
+                print("2 - Discard changes and exit")
+                print("3 - Cancel (return to menu)")
+                print()
+                exit_choice = input("Select option: ").strip()
+
+                if exit_choice == "1":
+                    # Commit and exit
+                    if cache.commit():
+                        print("\n✓ Changes committed successfully!")
+                        print("\nGoodbye!")
+                        break
+                    else:
+                        print("\n✗ Failed to commit changes")
+                        input("\nPress Enter to return to menu...")
+                elif exit_choice == "2":
+                    # Discard and exit
+                    print("\nDiscarding changes...")
+                    print("\nGoodbye!")
+                    break
+                elif exit_choice == "3":
+                    # Cancel exit
+                    continue
+                else:
+                    print("Invalid option. Returning to menu...")
+                    input("\nPress Enter to continue...")
+            else:
+                print("\nGoodbye!")
+                break
         else:
-            print("Invalid option. Please select B, N, D, S, V, F, R, or Q.")
+            print("Invalid option. Please select a valid option.")
+            input("\nPress Enter to continue...")
             input("\nPress Enter to continue...")
 
 
-def browse_and_edit_menu(db: ConfigDB):
+def browse_and_edit_menu(cache: ConfigCache):
     """Browse configuration by hierarchical navigation."""
-    navigate_config_menu(db, "", "Browse Configuration")
+    navigate_config_menu(cache, "", "Browse Configuration")
 
 
-def navigate_config_menu(db: ConfigDB, path: str = "", title: str = "Configuration"):
+def navigate_config_menu(cache: ConfigCache, path: str = "", title: str = "Configuration"):
     """Unified hierarchical navigation menu for configuration.
 
     Args:
-        db: Configuration database
+        cache: Configuration cache
         path: Current path in the configuration (e.g., "database.influxdb")
         title: Display title for current level
     """
@@ -731,7 +1018,7 @@ def navigate_config_menu(db: ConfigDB, path: str = "", title: str = "Configurati
 
         # Show context info at top level
         if not path and path == "":
-            active_db = db.get("database.type")
+            active_db = cache.get("database.type")
             if active_db:
                 db_names = {
                     "influxdb": "InfluxDB",
@@ -745,7 +1032,7 @@ def navigate_config_menu(db: ConfigDB, path: str = "", title: str = "Configurati
 
         # Show database context in database section
         if path == "database":
-            active_db = db.get("database.type")
+            active_db = cache.get("database.type")
             if active_db and active_db != "none":
                 db_names = {
                     "influxdb": "InfluxDB",
@@ -759,7 +1046,7 @@ def navigate_config_menu(db: ConfigDB, path: str = "", title: str = "Configurati
                 print("Active: None (sensor-only mode)\n")
 
         # Get all items at current level
-        items = get_config_items_at_path(db, path)
+        items = get_config_items_at_path(cache, path)
 
         if not items:
             print("No items at this level.\n")
@@ -785,7 +1072,7 @@ def navigate_config_menu(db: ConfigDB, path: str = "", title: str = "Configurati
                     "timescaledb",
                     "victoriametrics",
                 ]:
-                    active_db = db.get("database.type")
+                    active_db = cache.get("database.type")
                     if item["name"] != active_db:
                         marker = " [inactive]"
                 print(f"{i}. {item['name']:<35} → {item.get('desc', 'Subcategory')}{marker}")
@@ -825,10 +1112,10 @@ def navigate_config_menu(db: ConfigDB, path: str = "", title: str = "Configurati
                     # Navigate deeper
                     new_path = f"{path}.{selected['name']}" if path else selected["name"]
                     new_title = f"{title} → {selected['name'].upper()}"
-                    navigate_config_menu(db, new_path, new_title)
+                    navigate_config_menu(cache, new_path, new_title)
                 else:
                     # Edit the value
-                    edit_value_menu(db, selected["key"], selected.get("desc", ""))
+                    edit_value_menu(cache, selected["key"], selected.get("desc", ""))
             else:
                 print(f"Invalid option. Please select 1-{len(items)} or B.")
                 input("\nPress Enter to continue...")
@@ -837,11 +1124,11 @@ def navigate_config_menu(db: ConfigDB, path: str = "", title: str = "Configurati
             input("\nPress Enter to continue...")
 
 
-def get_config_items_at_path(db: ConfigDB, path: str) -> list[dict]:
+def get_config_items_at_path(cache: ConfigCache, path: str) -> list[dict]:
     """Get configuration items (subcategories and keys) at a specific path.
 
     Args:
-        db: Configuration database
+        cache: Configuration cache
         path: Current path (e.g., "database.influxdb")
 
     Returns:
@@ -850,8 +1137,8 @@ def get_config_items_at_path(db: ConfigDB, path: str) -> list[dict]:
     items = []
     seen_subcats = set()
 
-    # Get all keys from database
-    all_keys = db.list_keys("")
+    # Get all keys from cache
+    all_keys = cache.list_keys("")
 
     # Also get schema keys to show unset items
     schema_keys = get_all_keys(CONFIG_SCHEMA)
@@ -878,7 +1165,7 @@ def get_config_items_at_path(db: ConfigDB, path: str) -> list[dict]:
 
         if len(parts) == 1:
             # This is a direct key at this level
-            value = db.get(key)
+            value = cache.get(key)
             key_info = get_key_info(key)
             items.append(
                 {
@@ -986,13 +1273,13 @@ def get_menu_options_for_key(key: str) -> list[tuple[str, str]] | None:
 
 
 def edit_value_with_menu(
-    db: ConfigDB, key: str, description: str, options: list[tuple[str, str]]
+    cache: ConfigCache, key: str, description: str, options: list[tuple[str, str]]
 ) -> str | None:
     """Present a menu for selecting from predefined options.
 
     Returns selected value or None if user cancels.
     """
-    current_value = db.get(key)
+    current_value = cache.get(key)
 
     print_header(f"Edit: {key}")
     if description:
@@ -1076,13 +1363,13 @@ def is_text_input_key(key: str) -> bool:
     return any(pattern in key.lower() for pattern in text_input_patterns)
 
 
-def edit_tags_menu(db: ConfigDB, base_key: str = "data_collection.tags"):
+def edit_tags_menu(cache: ConfigCache, base_key: str = "data_collection.tags"):
     """Special menu for editing tags (key-value pairs)."""
     while True:
         print_header("Edit Tags")
 
         # Get all tag keys
-        all_keys = db.list_keys(base_key)
+        all_keys = cache.list_keys(base_key)
         tag_keys = [(k, d) for k, d in all_keys if k.startswith(f"{base_key}.")]
 
         if not tag_keys:
@@ -1091,7 +1378,7 @@ def edit_tags_menu(db: ConfigDB, base_key: str = "data_collection.tags"):
             print("Current tags:\n")
             for i, (key, desc) in enumerate(tag_keys, 1):
                 tag_name = key.replace(f"{base_key}.", "")
-                tag_value = db.get(key)
+                tag_value = cache.get(key)
                 print(f"{i}. {tag_name:<20} = {tag_value}")
 
         print("\nN - Add new tag")
@@ -1121,7 +1408,7 @@ def edit_tags_menu(db: ConfigDB, base_key: str = "data_collection.tags"):
                 continue
 
             full_key = f"{base_key}.{tag_name}"
-            db.set(full_key, tag_value, f"Tag: {tag_name}")
+            cache.set(full_key, tag_value, f"Tag: {tag_name}")
             print(f"\n✓ Added tag: {tag_name} = {tag_value}")
             input("\nPress Enter to continue...")
         else:
@@ -1131,7 +1418,7 @@ def edit_tags_menu(db: ConfigDB, base_key: str = "data_collection.tags"):
                     # Edit existing tag
                     selected_key, selected_desc = tag_keys[choice_num - 1]
                     tag_name = selected_key.replace(f"{base_key}.", "")
-                    current_value = db.get(selected_key)
+                    current_value = cache.get(selected_key)
 
                     print(f"\nEditing tag: {tag_name}")
                     print(f"Current value: {current_value}\n")
@@ -1149,14 +1436,14 @@ def edit_tags_menu(db: ConfigDB, base_key: str = "data_collection.tags"):
                             input("\nPress Enter to continue...")
                             continue
 
-                        db.set(selected_key, new_value, selected_desc)
+                        cache.set(selected_key, new_value, selected_desc)
                         print(f"\n✓ Updated tag: {tag_name} = {new_value}")
                         input("\nPress Enter to continue...")
 
                     elif edit_choice == "D":
                         confirm = input(f"Delete tag '{tag_name}'? (yes/no): ").strip().lower()
                         if confirm == "yes":
-                            if db.delete(selected_key):
+                            if cache.delete(selected_key):
                                 print(f"\n✓ Deleted tag: {tag_name}")
                                 input("\nPress Enter to continue...")
                         else:
@@ -1172,7 +1459,7 @@ def edit_tags_menu(db: ConfigDB, base_key: str = "data_collection.tags"):
                 input("\nPress Enter to continue...")
 
 
-def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
+def edit_value_menu(cache: ConfigCache, key: str, description: str = ""):
     """Edit a single configuration value."""
     # Special handling for tags and grouping keys (dict-based key-value pairs)
     if key in ["database.influxdb.tags", "database.prometheus.grouping_keys"]:
@@ -1184,7 +1471,7 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
         items_label = "grouping keys" if "grouping_keys" in key else "tags"
 
         while True:
-            current_value = db.get(key)
+            current_value = cache.get(key)
             if not isinstance(current_value, dict):
                 current_value = {}
 
@@ -1233,7 +1520,7 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
                     continue
 
                 current_value[tag_name] = tag_value
-                db.set(key, current_value, description)
+                cache.set(key, current_value, description)
                 print(f"\n✓ Set {tag_name} = {tag_value}")
                 input("\nPress Enter to continue...")
 
@@ -1247,7 +1534,7 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
                 tag_name = input(f"\nEnter {item_label} name to delete: ").strip()
                 if tag_name in current_value:
                     del current_value[tag_name]
-                    db.set(key, current_value, description)
+                    cache.set(key, current_value, description)
                     print(f"\n✓ Deleted {item_label}: {tag_name}")
                 else:
                     print(f"\n✗ {item_label.capitalize()} '{tag_name}' not found")
@@ -1272,7 +1559,7 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
                         input("\nPress Enter to continue...")
                         continue
 
-                    db.set(key, parsed_value, description)
+                    cache.set(key, parsed_value, description)
                     print(f"\n✓ Updated {key}")
                     input("\nPress Enter to continue...")
                 except json.JSONDecodeError as e:
@@ -1283,7 +1570,7 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
                 # Clear all tags/keys
                 confirm = input(f"Clear all {items_label}? (yes/no): ").strip().lower()
                 if confirm == "yes":
-                    db.set(key, {}, description)
+                    cache.set(key, {}, description)
                     print(f"\n✓ Cleared all {items_label}")
                     input("\nPress Enter to continue...")
             else:
@@ -1296,16 +1583,16 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
 
     if menu_options:
         # Use menu selection
-        new_value = edit_value_with_menu(db, key, description, menu_options)
+        new_value = edit_value_with_menu(cache, key, description, menu_options)
         if new_value is not None:
-            db.set(key, new_value, description)
+            cache.set(key, new_value, description)
             print(f"\n✓ Updated {key} = {new_value}")
             input("\nPress Enter to continue...")
         return
 
     # Original text input flow
     while True:
-        current_value = db.get(key)
+        current_value = cache.get(key)
 
         print_header(f"Edit: {key}")
         if description:
@@ -1395,7 +1682,7 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
                 input("\nPress Enter to continue...")
                 continue
 
-            db.set(key, converted_value, description)
+            cache.set(key, converted_value, description)
             print(f"\n✓ Updated {key}")
             input("\nPress Enter to continue...")
             return
@@ -1403,7 +1690,7 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
         elif choice == "D":
             confirm = input(f"Delete '{key}'? (yes/no): ").strip().lower()
             if confirm == "yes":
-                if db.delete(key):
+                if cache.delete(key):
                     print(f"\n✓ Deleted {key}")
                     input("\nPress Enter to continue...")
                     return
@@ -1422,7 +1709,7 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
             input("\nPress Enter to continue...")
 
 
-def add_new_value(db: ConfigDB):
+def add_new_value(cache: ConfigCache):
     """Add a new configuration value using schema-guided selection."""
     print_header("Add New Configuration")
 
@@ -1507,7 +1794,7 @@ def add_new_value(db: ConfigDB):
         key_info = keys_data[key]
         desc = key_info.get("desc", "")
         full_key = f"{key_prefix}.{key}"
-        existing = db.get(full_key)
+        existing = cache.get(full_key)
         status = " (set)" if existing is not None else " (not set)"
         print(f"{i}. {key:<25} {desc}{status}")
     print("B - Back")
@@ -1532,7 +1819,7 @@ def add_new_value(db: ConfigDB):
 
     # Step 4: Enter value
     full_key = f"{key_prefix}.{selected_key}"
-    existing = db.get(full_key)
+    existing = cache.get(full_key)
 
     print(f"\nConfiguring: {full_key}")
     print(f"Description: {key_info.get('desc', 'No description')}")
@@ -1604,12 +1891,12 @@ def add_new_value(db: ConfigDB):
         return
 
     # Save the validated and converted value
-    db.set(full_key, converted_value, key_info.get("desc", ""))
+    cache.set(full_key, converted_value, key_info.get("desc", ""))
     print(f"\n✓ Set {full_key} = {converted_value if not is_sensitive else '********'}")
     input("\nPress Enter to continue...")
 
 
-def search_config(db: ConfigDB):
+def search_config(cache: ConfigCache):
     """Search for configuration keys."""
     print_header("Search Configuration")
 
@@ -1619,7 +1906,7 @@ def search_config(db: ConfigDB):
         input("\nPress Enter to continue...")
         return
 
-    all_keys = db.list_keys("")
+    all_keys = cache.list_keys("")
     matches = [(key, desc) for key, desc in all_keys if search_term in key.lower()]
 
     if not matches:
@@ -1629,7 +1916,7 @@ def search_config(db: ConfigDB):
 
     print(f"\nFound {len(matches)} match(es):\n")
     for i, (key, desc) in enumerate(matches, 1):
-        value = db.get(key)
+        value = cache.get(key)
 
         # Mask sensitive values
         if any(sensitive in key.lower() for sensitive in ["password", "token", "secret", "key"]):
@@ -1653,7 +1940,7 @@ def search_config(db: ConfigDB):
         choice_num = int(choice)
         if 1 <= choice_num <= len(matches):
             selected_key, selected_desc = matches[choice_num - 1]
-            edit_value_menu(db, selected_key, selected_desc)
+            edit_value_menu(cache, selected_key, selected_desc)
         else:
             print("Invalid option.")
             input("\nPress Enter to continue...")
@@ -1690,22 +1977,49 @@ def main():
         print(f"Make sure the encryption key is correct and database exists at: {args.db}")
         sys.exit(1)
 
+    # Initialize cache
+    cache = ConfigCache(db)
+
     # Execute command
     try:
         if args.interactive or (
             not args.list and not args.get and not args.set and not args.delete
         ):
-            interactive_menu(db)
+            # Interactive mode - uses cache with exit confirmation
+            interactive_menu(cache)
         elif args.list:
-            list_config(db)
+            # Non-interactive mode - read-only, no cache needed
+            list_config(cache)
         elif args.get:
-            get_value(db, args.get)
+            # Non-interactive mode - read-only, no cache needed
+            get_value(cache, args.get)
         elif args.set:
-            set_value(db, args.set[0], args.set[1])
+            # Non-interactive mode - direct write to database
+            set_value(cache, args.set[0], args.set[1])
+            # Auto-commit in non-interactive mode
+            if cache.has_changes():
+                print("\nCommitting changes to database...")
+                cache.commit()
+                print("✓ Changes committed")
         elif args.delete:
-            delete_value(db, args.delete)
+            # Non-interactive mode - direct write to database
+            delete_value(cache, args.delete)
+            # Auto-commit in non-interactive mode
+            if cache.has_changes():
+                print("\nCommitting changes to database...")
+                cache.commit()
+                print("✓ Changes committed")
     except KeyboardInterrupt:
         print("\n\nInterrupted by user")
+        # Check for pending changes
+        if cache.has_changes():
+            print("\n⚠️  Warning: Uncommitted changes will be lost!")
+            print(cache.get_change_summary())
+            print()
+            confirm = input("Commit changes before exit? (yes/no): ").strip().lower()
+            if confirm == "yes":
+                cache.commit()
+                print("✓ Changes committed")
         sys.exit(1)
     except Exception as e:
         print(f"Error: {e}")
