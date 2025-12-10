@@ -51,6 +51,17 @@ class InfluxDBAdapter(TimeSeriesDB):
             ssl=config.get("ssl", False),
             verify_ssl=config.get("verify_ssl", True),
         )
+
+        # Ensure database exists
+        try:
+            self.client.create_database(config.get("database"))
+            logging.debug(f"Ensured InfluxDB database exists: {config.get('database')}")
+        except Exception:
+            # Database likely already exists, which is fine
+            logging.debug(
+                f"InfluxDB database {config.get('database')} already exists or cannot be created"
+            )
+
         logging.info(
             f"Initialized InfluxDB adapter: {config.get('host')}:{config.get('port')}/{config.get('database')}"
         )

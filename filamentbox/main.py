@@ -140,24 +140,6 @@ def main() -> None:
         db_type = get("database.type")
         db_config = get_database_config(db_type)
 
-        # Ensure the InfluxDB database exists (InfluxDB-specific setup)
-        if db_type == "influxdb":
-            try:
-                from influxdb import InfluxDBClient
-
-                temp_client = InfluxDBClient(
-                    host=db_config["host"],
-                    port=db_config["port"],
-                    username=db_config["username"],
-                    password=db_config["password"],
-                    database=db_config["database"],
-                )
-                temp_client.create_database(db_config["database"])
-                temp_client.close()
-                logging.info(f"Ensured InfluxDB database exists: {db_config['database']}")
-            except Exception:
-                logging.debug("Could not create/ensure InfluxDB database (may already exist)")
-
         if get("data_collection.enabled") and db_type != "none":
             db_adapter = create_database_adapter(db_type, db_config)
             success, failure = load_and_flush_persisted_batches(db_adapter)
