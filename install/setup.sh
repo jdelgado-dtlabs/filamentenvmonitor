@@ -379,6 +379,17 @@ ensure_pysqlcipher3() {
             "$INSTALL_ROOT/filamentcontrol/bin/pip" install pysqlcipher3
         fi
         echo ""
+        
+        # Verify installation
+        if ! "$INSTALL_ROOT/filamentcontrol/bin/python" -c "import pysqlcipher3" 2>/dev/null && \
+           ! "$INSTALL_ROOT/filamentcontrol/bin/python" -c "import sqlcipher3" 2>/dev/null; then
+            echo -e "${RED}Failed to install SQLCipher Python bindings.${NC}"
+            echo -e "${RED}Please install manually and re-run setup.${NC}"
+            echo ""
+            return 1
+        fi
+        echo -e "${GREEN}✓ SQLCipher Python bindings installed successfully${NC}"
+        echo ""
     else
         echo -e "${GREEN}SQLCipher Python bindings already installed.${NC}"
     fi
@@ -692,6 +703,13 @@ if [ "$LEGACY_FILES_EXIST" = true ]; then
     
     # Ensure pysqlcipher3 is installed
     ensure_pysqlcipher3
+    
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}Failed to install SQLCipher dependencies.${NC}"
+        echo -e "${RED}Cannot proceed with migration.${NC}"
+        echo ""
+        exit 1
+    fi
     
     echo -e "${CYAN}Running migration from legacy configuration files...${NC}"
     echo ""
