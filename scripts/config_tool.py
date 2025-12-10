@@ -75,6 +75,35 @@ CONFIG_SCHEMA = {
 }
 
 
+# Legacy key mappings: maps old keys to new schema keys
+LEGACY_KEY_MAPPINGS = {
+    # Old InfluxDB keys → new database.influxdb keys
+    "influxdb.host": "database.influxdb.url",
+    "influxdb.port": "database.influxdb.url",  # Will need special handling to combine
+    "influxdb.database": "database.influxdb.bucket",
+    "influxdb.username": "database.influxdb.org",  # Username often maps to org
+    "influxdb.password": "database.influxdb.token",
+    "influxdb.token": "database.influxdb.token",
+    "influxdb.org": "database.influxdb.org",
+    "influxdb.bucket": "database.influxdb.bucket",
+    "influxdb.url": "database.influxdb.url",
+    # Data collection keys
+    "data.collection.measurement": None,  # Not used in new schema
+    "data.collection.tags": None,  # Tags are flexible, not in strict schema
+    # Sensor keys (old flat structure → new nested)
+    "sensor.bme280.enabled": "sensors.bme280.enabled",
+    "sensor.bme280.address": "sensors.bme280.i2c_address",
+    "sensor.dht22.enabled": "sensors.dht22.enabled",
+    "sensor.dht22.pin": "sensors.dht22.gpio_pin",
+    # Bluetooth keys
+    "bluetooth.scan_interval": "bluetooth.scan_interval",
+    "bluetooth.timeout": "bluetooth.device_timeout",
+    # Web UI keys
+    "webui.host": "webui.host",
+    "webui.port": "webui.port",
+}
+
+
 def get_all_valid_keys(schema: dict, prefix: str = "") -> set[str]:
     """Recursively get all valid keys from schema."""
     valid_keys = set()
@@ -99,7 +128,11 @@ def get_all_valid_keys(schema: dict, prefix: str = "") -> set[str]:
 
 def find_similar_key(invalid_key: str, valid_keys: set[str]) -> str | None:
     """Find the most similar valid key for an invalid key."""
-    # Try simple transformations first
+    # First check if it's a known legacy key
+    if invalid_key in LEGACY_KEY_MAPPINGS:
+        return LEGACY_KEY_MAPPINGS[invalid_key]
+
+    # Try simple transformations
     parts = invalid_key.split(".")
 
     # Common mistakes to check
@@ -218,17 +251,69 @@ def fix_invalid_keys_menu(db: ConfigDB):
     choice = input("Select option: ").strip().upper()
 
     if choice == "A":
-        # Auto-fix all
+        # Auto-fix all with special handling for certain key combinations
         migrated = 0
+        skipped = []
+
+        # Special handling for influxdb.host + influxdb.port → database.influxdb.url
+        if "influxdb.host" in invalid_keys and "influxdb.port" in invalid_keys:
+            host = db.get("influxdb.host")
+            port = db.get("influxdb.port")
+            if host and port:
+                url = f"http://{host}:{port}"
+                db.set("database.influxdb.url", url)
+                db.delete("influxdb.host")
+                db.delete("influxdb.port")
+                print(f"✓ Combined: influxdb.host + influxdb.port → database.influxdb.url ({url})")
+                migrated += 2
+                # Remove from invalid_keys so we don't process them again
+                invalid_keys = {
+                    k: v
+                    for k, v in invalid_keys.items()
+                    if k not in ["influxdb.host", "influxdb.port"]
+                }
+
+        # Process remaining keys
         for invalid_key, suggested_key in invalid_keys.items():
-            if suggested_key:
+            if suggested_key is None:
+                # Check if it's a flexible key (like tags)
+                if ".tags" in invalid_key or invalid_key.startswith("data.collection"):
+                    skipped.append(f"{invalid_key} (flexible key, keeping)")
+                else:
+                    skipped.append(f"{invalid_key} (no suggestion)")
+            else:
                 value = db.get(invalid_key)
-                db.set(suggested_key, value)
+
+                # Special handling for certain conversions
+                if invalid_key == "influxdb.username" and suggested_key == "database.influxdb.org":
+                    # Username might not be the org, ask user or use as-is
+                    db.set(suggested_key, value, "InfluxDB organization (migrated from username)")
+                elif (
+                    invalid_key == "influxdb.database"
+                    and suggested_key == "database.influxdb.bucket"
+                ):
+                    # Database → Bucket naming
+                    db.set(suggested_key, value, "InfluxDB bucket (migrated from database)")
+                elif (
+                    invalid_key == "influxdb.password"
+                    and suggested_key == "database.influxdb.token"
+                ):
+                    # Password → Token (might need regeneration)
+                    db.set(suggested_key, value, "InfluxDB token (migrated from password)")
+                    print(
+                        "⚠ Note: influxdb.password migrated to token - may need to regenerate token"
+                    )
+                else:
+                    db.set(suggested_key, value)
+
                 db.delete(invalid_key)
                 print(f"✓ Migrated: {invalid_key} → {suggested_key}")
                 migrated += 1
-            else:
-                print(f"⚠ Skipped (no suggestion): {invalid_key}")
+
+        if skipped:
+            print("\nSkipped keys:")
+            for skip in skipped:
+                print(f"  ⚠ {skip}")
 
         print(f"\n✓ Migrated {migrated} key(s)")
         input("\nPress Enter to continue...")
