@@ -26,9 +26,14 @@ from .logging_config import configure_logging
 from .persistence import recover_persisted_batches
 from .sensor import convert_c_to_f, log_data, read_sensor_data
 from .shared_state import update_sensor_data
+from .thread_control import register_thread, register_restart_callback
 
 # Global stop event shared by all threads
 _stop_event = threading.Event()
+
+# Global thread references for restart capability
+_writer_thread: threading.Thread | None = None
+_collector_thread: threading.Thread | None = None
 
 # Global variable for read interval (can be updated by config watcher)
 _read_interval: float = 5.0
@@ -141,6 +146,62 @@ def cleanup_and_exit() -> None:
     time.sleep(1)  # Ensure the writer thread has time to finish before the script exits
 
 
+def restart_database_writer() -> None:
+    """Restart the database writer thread."""
+    global _writer_thread
+
+    logging.info("Restarting database writer thread...")
+
+    # If old thread exists and is running, it will continue until stop event
+    # We'll create a new thread alongside it
+    new_thread = threading.Thread(
+        target=database_writer, args=(_stop_event,), daemon=True, name="DatabaseWriter"
+    )
+    new_thread.start()
+    _writer_thread = new_thread
+    register_thread("database_writer", new_thread)
+    logging.info("Database writer thread restarted")
+
+
+def restart_data_collector() -> None:
+    """Restart the data collection thread."""
+    global _collector_thread
+
+    logging.info("Restarting data collector thread...")
+
+    new_thread = threading.Thread(target=data_collection_cycle, daemon=True, name="DataCollector")
+    new_thread.start()
+    _collector_thread = new_thread
+    register_thread("data_collector", new_thread)
+    logging.info("Data collector thread restarted")
+
+
+def restart_heating_control_wrapper() -> None:
+    """Restart heating control thread (wrapper for thread_control)."""
+    logging.info("Restarting heating control...")
+    stop_heating_control()
+    time.sleep(0.5)  # Brief pause to ensure clean shutdown
+    start_heating_control()
+    # Register the new thread
+    heating_thread = get_heating_thread()
+    if heating_thread:
+        register_thread("heating_control", heating_thread)
+    logging.info("Heating control restarted")
+
+
+def restart_humidity_control_wrapper() -> None:
+    """Restart humidity control thread (wrapper for thread_control)."""
+    logging.info("Restarting humidity control...")
+    stop_humidity_control()
+    time.sleep(0.5)  # Brief pause to ensure clean shutdown
+    start_humidity_control()
+    # Register the new thread
+    humidity_thread = get_humidity_thread()
+    if humidity_thread:
+        register_thread("humidity_control", humidity_thread)
+    logging.info("Humidity control restarted")
+
+
 def main() -> None:
     """Program entry: configure logging, recover persisted batches, start threads.
 
@@ -177,36 +238,51 @@ def main() -> None:
     # This ensures data durability across reboots.
     recover_persisted_batches()
 
+    # Register restart callbacks for thread control
+    register_restart_callback("database_writer", restart_database_writer)
+    register_restart_callback("data_collector", restart_data_collector)
+    register_restart_callback("heating_control", restart_heating_control_wrapper)
+    register_restart_callback("humidity_control", restart_humidity_control_wrapper)
+
     # Start all threads
+    global _writer_thread, _collector_thread
     threads = []
 
     # Start database writer thread
-    writer_thread = threading.Thread(
+    _writer_thread = threading.Thread(
         target=database_writer, args=(_stop_event,), daemon=True, name="DatabaseWriter"
     )
-    writer_thread.start()
-    threads.append(writer_thread)
+    _writer_thread.start()
+    threads.append(_writer_thread)
+    register_thread("database_writer", _writer_thread)
 
     # Data collection thread
-    collector_thread = threading.Thread(
+    _collector_thread = threading.Thread(
         target=data_collection_cycle, daemon=True, name="DataCollector"
     )
-    collector_thread.start()
-    threads.append(collector_thread)
+    _collector_thread.start()
+    threads.append(_collector_thread)
+    register_thread("data_collector", _collector_thread)
 
     # Heating control thread (if enabled in config)
     start_heating_control()
+    heating_thread = get_heating_thread()
+    if heating_thread:
+        register_thread("heating_control", heating_thread)
 
     # Humidity control thread (if enabled in config)
     start_humidity_control()
+    humidity_thread = get_humidity_thread()
+    if humidity_thread:
+        register_thread("humidity_control", humidity_thread)
 
     try:
         logging.info("Data collection started. Press Ctrl+C to stop.")
         while True:
             # Monitor thread health for core threads
-            if not writer_thread.is_alive():
+            if _writer_thread and not _writer_thread.is_alive():
                 logging.critical("Database writer thread has exited unexpectedly!")
-            if not collector_thread.is_alive():
+            if _collector_thread and not _collector_thread.is_alive():
                 logging.critical("Data collector thread has exited unexpectedly!")
 
             # Monitor control threads if they're running

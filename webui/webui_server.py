@@ -19,6 +19,7 @@ from filamentbox.shared_state import (
     set_fan_manual_override,
     set_heater_manual_override,
 )
+from filamentbox.thread_control import get_thread_status, restart_thread
 
 # Get the directory where this script is located
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -148,6 +149,37 @@ def control_fan() -> Union[Response, Tuple[Response, int]]:
     logger.info(f"Fan control set to: {state}")
 
     return jsonify({"success": True, "state": state})
+
+
+@app.route("/api/threads")
+def get_threads() -> Response:
+    """Get status of all worker threads.
+
+    Returns:
+        JSON with thread status information.
+    """
+    status = get_thread_status()
+    return jsonify(status)
+
+
+@app.route("/api/threads/<thread_name>/restart", methods=["POST"])
+def restart_thread_endpoint(thread_name: str) -> Union[Response, Tuple[Response, int]]:
+    """Restart a specific worker thread.
+
+    Args:
+        thread_name: Name of the thread to restart
+
+    Returns:
+        JSON with success status and message.
+    """
+    success, message = restart_thread(thread_name)
+
+    if success:
+        logger.info(f"Thread restart requested via API: {thread_name}")
+        return jsonify({"success": True, "message": message})
+    else:
+        logger.warning(f"Thread restart failed via API: {thread_name} - {message}")
+        return jsonify({"success": False, "error": message}), 400
 
 
 @app.route("/api/status")

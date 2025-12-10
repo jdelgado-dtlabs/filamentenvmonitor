@@ -218,6 +218,53 @@
             background: #5a6268;
         }
 
+        .btn-restart {
+            background: #ffc107;
+            color: #212529;
+            font-size: 0.85rem;
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .btn-restart:hover {
+            background: #e0a800;
+            transform: translateY(-1px);
+        }
+
+        .btn-restart:active {
+            transform: translateY(0);
+        }
+
+        .thread-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .thread-item:last-child {
+            border-bottom: none;
+        }
+
+        .thread-name {
+            font-weight: 500;
+            color: #333;
+        }
+
+        .thread-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
         .error-message {
             background: #f8d7da;
             color: #721c24;
@@ -225,6 +272,15 @@
             border-radius: 8px;
             margin-bottom: 20px;
             border-left: 4px solid #dc3545;
+        }
+
+        .success-message {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #28a745;
         }
 
         .loading {
@@ -294,6 +350,20 @@
             return await response.json();
         }
 
+        async function restartThread(threadName) {
+            const response = await fetch(`${API_BASE}/api/threads/${threadName}/restart`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.error || `HTTP error! status: ${response.status}`);
+            }
+            return result;
+        }
+
         function formatValue(value, decimals = 1) {
             return value !== null && value !== undefined ? value.toFixed(decimals) : 'N/A';
         }
@@ -313,9 +383,13 @@
 
         function showError(message) {
             const errorContainer = document.getElementById('error-container');
+            const isSuccess = message.startsWith('✓');
+            const className = isSuccess ? 'success-message' : 'error-message';
+            const prefix = isSuccess ? '' : '<strong>Error:</strong> ';
+            
             errorContainer.innerHTML = `
-                <div class="error-message">
-                    <strong>Error:</strong> ${message}
+                <div class="${className}">
+                    ${prefix}${message}
                 </div>
             `;
         }
@@ -328,6 +402,7 @@
             try {
                 const data = await fetchData('status');
                 const dbStatus = await fetchData('database');
+                const threads = await fetchData('threads');
                 clearError();
 
                 const isStale = data.sensor.age && data.sensor.age > 10;
@@ -336,6 +411,39 @@
                 // Format database type
                 const dbTypeDisplay = dbStatus.type === 'none' ? 'None - Sensor Only' : 
                                      dbStatus.type.charAt(0).toUpperCase() + dbStatus.type.slice(1);
+
+                // Format thread names for display
+                const threadDisplayNames = {
+                    'data_collector': 'Data Collector',
+                    'database_writer': 'Database Writer',
+                    'heating_control': 'Heating Control',
+                    'humidity_control': 'Humidity Control'
+                };
+
+                // Generate thread status HTML
+                let threadStatusHTML = '';
+                for (const [name, status] of Object.entries(threads)) {
+                    const displayName = threadDisplayNames[name] || name;
+                    const isAlive = status.alive;
+                    const canRestart = status.restartable;
+                    
+                    threadStatusHTML += `
+                        <div class="thread-item">
+                            <span class="thread-name">${displayName}</span>
+                            <div class="thread-status">
+                                <span class="status-indicator ${isAlive ? 'status-on' : 'status-off'}">
+                                    <span class="status-dot"></span>
+                                    ${isAlive ? 'RUNNING' : 'STOPPED'}
+                                </span>
+                                ${canRestart ? `
+                                    <button class="btn-restart" onclick="handleThreadRestart('${name}')">
+                                        🔄 Restart
+                                    </button>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `;
+                }
 
                 document.getElementById('dashboard').innerHTML = `
                     <div class="card ${staleClass}">
@@ -398,6 +506,13 @@
 
                     <div class="card">
                         <div class="card-header">
+                            <h2>⚙️ Worker Threads</h2>
+                        </div>
+                        ${threadStatusHTML}
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
                             <h2>🔥 Heater Control</h2>
                             <span class="status-indicator ${data.controls.heater.on ? 'status-on' : 'status-off'}">
                                 <span class="status-dot"></span>
@@ -448,6 +563,17 @@
                 await updateDashboard(); // Immediate refresh
             } catch (error) {
                 showError(`Failed to control ${device}: ${error.message}`);
+            }
+        }
+
+        async function handleThreadRestart(threadName) {
+            try {
+                const result = await restartThread(threadName);
+                showError(`✓ ${result.message}`);
+                setTimeout(clearError, 3000); // Clear success message after 3s
+                await updateDashboard(); // Immediate refresh
+            } catch (error) {
+                showError(`Failed to restart thread: ${error.message}`);
             }
         }
 
