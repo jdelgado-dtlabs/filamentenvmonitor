@@ -752,12 +752,16 @@ def browse_and_edit_menu(db: ConfigDB):
             count = len(sections[section])
             print(f"{i}. {section.upper()} ({count} settings)")
         print("B - Back to main menu")
+        print("Q - Quit")
         print()
 
-        choice = input("Select section (number or B): ").strip().upper()
+        choice = input("Select section (number, B, or Q): ").strip().upper()
 
         if choice == "B":
             return
+        elif choice == "Q":
+            print("\nGoodbye!")
+            sys.exit(0)
 
         try:
             choice_num = int(choice)
@@ -826,12 +830,16 @@ def edit_section_menu(db: ConfigDB, section: str, keys: list):
                 print(f"   {'':<35}   {desc}")
 
         print("B - Back to sections")
+        print("Q - Quit")
         print()
 
-        choice = input("Select setting to edit (number or B): ").strip().upper()
+        choice = input("Select setting to edit (number, B, or Q): ").strip().upper()
 
         if choice == "B":
             return
+        elif choice == "Q":
+            print("\nGoodbye!")
+            sys.exit(0)
 
         try:
             choice_num = int(choice)
@@ -918,12 +926,16 @@ def edit_value_with_menu(
         print(f"{i}. {value:<20} {desc}{marker}")
 
     print("C - Cancel")
+    print("Q - Quit")
     print()
 
-    choice = input("Select option (number or C): ").strip().upper()
+    choice = input("Select option (number, C, or Q): ").strip().upper()
 
     if choice == "C":
         return None
+    elif choice == "Q":
+        print("\nGoodbye!")
+        sys.exit(0)
 
     try:
         choice_num = int(choice)
@@ -1004,12 +1016,16 @@ def edit_tags_menu(db: ConfigDB, base_key: str = "data_collection.tags"):
 
         print("\nN - Add new tag")
         print("B - Back")
+        print("Q - Quit")
         print()
 
-        choice = input("Select option (number, N, or B): ").strip().upper()
+        choice = input("Select option (number, N, B, or Q): ").strip().upper()
 
         if choice == "B":
             return
+        elif choice == "Q":
+            print("\nGoodbye!")
+            sys.exit(0)
         elif choice == "N":
             # Add new tag
             tag_name = input("\nEnter tag name: ").strip()
@@ -1127,11 +1143,15 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
         print("E - Change value")
         print("D - Delete this setting")
         print("B - Back")
+        print("Q - Quit")
         print()
 
-        choice = input("Select option: ").strip().upper()
+        choice = input("Select option (E, D, B, or Q): ").strip().upper()
 
-        if choice == "E":
+        if choice == "Q":
+            print("\nGoodbye!")
+            sys.exit(0)
+        elif choice == "E":
             # Get new value with example in prompt
             if example and not is_sensitive:
                 prompt = f"Enter new value (e.g., {example}): "
