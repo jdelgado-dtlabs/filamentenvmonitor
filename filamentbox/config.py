@@ -163,8 +163,15 @@ def reload_config() -> None:
 
     if using_encrypted_db and config_db is not None:
         # Reload all values from encrypted database into cache
+        # Create a new connection since we may be in a different thread (config_watcher)
         try:
-            _config_cache = config_db.get_all()
+            # Import here to avoid circular dependency
+            from .config_db import CONFIG_DB_PATH
+
+            # Create a temporary read-only connection for this reload
+            temp_db = ConfigDB(db_path=CONFIG_DB_PATH, read_only=True)
+            _config_cache = temp_db.get_all()
+            temp_db.close()
             _config_cache_loaded = True
             logging.info(f"Reloaded {len(_config_cache)} configuration values from database")
         except Exception as e:
