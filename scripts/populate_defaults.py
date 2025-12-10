@@ -112,6 +112,31 @@ def populate_defaults(db_path, encryption_key, verbose=True):
             print(f"  ERROR: Failed to set {key}: {e}", file=sys.stderr)
             error_count += 1
 
+    # Initialize empty dicts for tags/grouping keys (these don't have defaults in schema)
+    dict_keys = {
+        "database.influxdb.tags": "InfluxDB tags",
+        "database.prometheus.grouping_keys": "Prometheus grouping keys (labels)",
+    }
+
+    if verbose:
+        print("\nInitializing empty dicts for tags/grouping keys:")
+
+    for key, description in dict_keys.items():
+        try:
+            existing_value = db.get(key)
+            if existing_value is not None:
+                if verbose:
+                    print(f"  SKIP: {key} (already set)")
+                skip_count += 1
+            else:
+                db.set(key, {}, description)
+                if verbose:
+                    print(f"  SET:  {key} = {{}}")
+                success_count += 1
+        except Exception as e:
+            print(f"  ERROR: Failed to set {key}: {e}", file=sys.stderr)
+            error_count += 1
+
     if verbose:
         print("")
         print("=" * 60)
