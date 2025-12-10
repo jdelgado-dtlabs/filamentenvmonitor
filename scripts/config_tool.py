@@ -714,75 +714,37 @@ def interactive_menu(db: ConfigDB):
 
 
 def browse_and_edit_menu(db: ConfigDB):
-    """Browse configuration by section and edit values."""
+    """Browse configuration by hierarchical navigation."""
+    navigate_config_menu(db, "", "Browse Configuration")
+
+
+def navigate_config_menu(db: ConfigDB, path: str = "", title: str = "Configuration"):
+    """Unified hierarchical navigation menu for configuration.
+
+    Args:
+        db: Configuration database
+        path: Current path in the configuration (e.g., "database.influxdb")
+        title: Display title for current level
+    """
     while True:
-        # Get all sections
-        all_keys = db.list_keys("")
-        if not all_keys:
-            print("\nNo configuration found.")
-            input("\nPress Enter to continue...")
-            return
+        print_header(title)
 
-        # Display active database at the top
-        print_header("Configuration Sections")
-        active_db = db.get("database.type")
-        if active_db:
-            db_names = {
-                "influxdb": "InfluxDB",
-                "prometheus": "Prometheus",
-                "timescaledb": "TimescaleDB",
-                "victoriametrics": "VictoriaMetrics",
-                "none": "None (sensor-only mode)",
-            }
-            db_name = db_names.get(active_db, active_db)
-            print(f"Active Database: {db_name}")
-            print()
+        # Show context info at top level
+        if not path and path == "":
+            active_db = db.get("database.type")
+            if active_db:
+                db_names = {
+                    "influxdb": "InfluxDB",
+                    "prometheus": "Prometheus",
+                    "timescaledb": "TimescaleDB",
+                    "victoriametrics": "VictoriaMetrics",
+                    "none": "None (sensor-only mode)",
+                }
+                db_name = db_names.get(active_db, active_db)
+                print(f"Active Database: {db_name}\n")
 
-        sections = {}
-        for key, desc in all_keys:
-            section = key.split(".")[0]
-            if section not in sections:
-                sections[section] = []
-            sections[section].append((key, desc))
-
-        # Display section menu
-        print_header("Configuration Sections")
-        section_list = sorted(sections.keys())
-        for i, section in enumerate(section_list, 1):
-            count = len(sections[section])
-            print(f"{i}. {section.upper()} ({count} settings)")
-        print("B - Back to main menu")
-        print("Q - Quit")
-        print()
-
-        choice = input("Select section (number, B, or Q): ").strip().upper()
-
-        if choice == "B":
-            return
-        elif choice == "Q":
-            print("\nGoodbye!")
-            sys.exit(0)
-
-        try:
-            choice_num = int(choice)
-            if 1 <= choice_num <= len(section_list):
-                selected_section = section_list[choice_num - 1]
-                edit_section_menu(db, selected_section, sections[selected_section])
-            else:
-                print(f"Invalid option. Please select 1-{len(section_list)} or B.")
-                input("\nPress Enter to continue...")
-        except ValueError:
-            print("Invalid input. Please enter a number or B.")
-            input("\nPress Enter to continue...")
-
-
-def edit_section_menu(db: ConfigDB, section: str, keys: list):
-    """Edit values within a specific section."""
-    while True:
-        print_header(f"{section.upper()} Configuration")
-
-        # Show active database info for database section
-        if section == "database":
+        # Show database context in database section
+        if path == "database":
             active_db = db.get("database.type")
             if active_db and active_db != "none":
                 db_names = {
@@ -792,48 +754,61 @@ def edit_section_menu(db: ConfigDB, section: str, keys: list):
                     "victoriametrics": "VictoriaMetrics",
                 }
                 db_name = db_names.get(active_db, active_db)
-                print(f"Active Database: {db_name}")
-                print(f"Note: Only {db_name} settings will be used.")
-                print("      Other database configurations are stored but inactive.")
-                print()
+                print(f"Active: {db_name}\n")
             elif active_db == "none":
-                print("Active Database: None (sensor-only mode)")
-                print("Note: No database writes will occur. Data collection only.")
-                print()
+                print("Active: None (sensor-only mode)\n")
 
-        # Display keys with current values
-        for i, (key, desc) in enumerate(keys, 1):
-            value = db.get(key)
+        # Get all items at current level
+        items = get_config_items_at_path(db, path)
 
-            # Mask sensitive values
-            if any(
-                sensitive in key.lower() for sensitive in ["password", "token", "secret", "key"]
-            ):
-                display_value = "********" if value else "(not set)"
-            else:
-                display_value = value if value is not None else "(not set)"
+        if not items:
+            print("No items at this level.\n")
+            print("B - Back")
+            print("Q - Quit")
+            print()
+            choice = input("Select option: ").strip().upper()
+            if choice == "B":
+                return
+            elif choice == "Q":
+                print("\nGoodbye!")
+                sys.exit(0)
+            continue
 
-            # Show simplified key (remove section prefix for clarity)
-            simple_key = key.replace(f"{section}.", "", 1)
-
-            # Mark keys that belong to inactive databases
-            marker = ""
-            if section == "database" and "." in simple_key:
-                db_prefix = simple_key.split(".")[0]
-                active_db = db.get("database.type")
-                if db_prefix in ["influxdb", "prometheus", "timescaledb", "victoriametrics"]:
-                    if db_prefix != active_db:
+        # Display items
+        for i, item in enumerate(items, 1):
+            if item["type"] == "subcategory":
+                # Show folder icon for subcategories
+                marker = ""
+                if path == "database" and item["name"] in [
+                    "influxdb",
+                    "prometheus",
+                    "timescaledb",
+                    "victoriametrics",
+                ]:
+                    active_db = db.get("database.type")
+                    if item["name"] != active_db:
                         marker = " [inactive]"
+                print(f"{i}. {item['name']:<35} → {item.get('desc', 'Subcategory')}{marker}")
+            else:
+                # Show key with value
+                value = item["value"]
+                # Mask sensitive values
+                if any(s in item["key"].lower() for s in ["password", "token", "secret", "key"]):
+                    display_value = "********" if value is not None else "(not set)"
+                else:
+                    display_value = value if value is not None else "(not set)"
 
-            print(f"{i}. {simple_key:<35} = {display_value}{marker}")
-            if desc:
-                print(f"   {'':<35}   {desc}")
+                desc_text = f"({item.get('desc', '')})" if item.get("desc") else ""
+                print(f"{i}. {item['name']:<35} = {display_value}")
+                if desc_text:
+                    print(f"   {'':<35}   {desc_text}")
 
-        print("B - Back to sections")
+        print()
+        print("B - Back")
         print("Q - Quit")
         print()
 
-        choice = input("Select setting to edit (number, B, or Q): ").strip().upper()
+        choice = input("Select item (number, B, or Q): ").strip().upper()
 
         if choice == "B":
             return
@@ -843,15 +818,120 @@ def edit_section_menu(db: ConfigDB, section: str, keys: list):
 
         try:
             choice_num = int(choice)
-            if 1 <= choice_num <= len(keys):
-                selected_key, selected_desc = keys[choice_num - 1]
-                edit_value_menu(db, selected_key, selected_desc)
+            if 1 <= choice_num <= len(items):
+                selected = items[choice_num - 1]
+
+                if selected["type"] == "subcategory":
+                    # Navigate deeper
+                    new_path = f"{path}.{selected['name']}" if path else selected["name"]
+                    new_title = f"{title} → {selected['name'].upper()}"
+                    navigate_config_menu(db, new_path, new_title)
+                else:
+                    # Edit the value
+                    edit_value_menu(db, selected["key"], selected.get("desc", ""))
             else:
-                print(f"Invalid option. Please select 1-{len(keys)} or B.")
+                print(f"Invalid option. Please select 1-{len(items)} or B.")
                 input("\nPress Enter to continue...")
         except ValueError:
             print("Invalid input. Please enter a number or B.")
             input("\nPress Enter to continue...")
+
+
+def get_config_items_at_path(db: ConfigDB, path: str) -> list[dict]:
+    """Get configuration items (subcategories and keys) at a specific path.
+
+    Args:
+        db: Configuration database
+        path: Current path (e.g., "database.influxdb")
+
+    Returns:
+        List of items with 'type' ('subcategory' or 'key'), 'name', 'key', 'value', 'desc'
+    """
+    items = []
+    seen_subcats = set()
+
+    # Get all keys from database
+    all_keys = db.list_keys("")
+
+    # Also get schema keys to show unset items
+    schema_keys = get_all_keys(CONFIG_SCHEMA)
+
+    # Combine both sources
+    all_possible_keys = set()
+    for key, _ in all_keys:
+        all_possible_keys.add(key)
+    for key in schema_keys:
+        all_possible_keys.add(key)
+
+    for key in sorted(all_possible_keys):
+        # Check if key is at current path level
+        if path:
+            if not key.startswith(path + "."):
+                continue
+            # Remove the path prefix
+            relative_key = key[len(path) + 1 :]
+        else:
+            relative_key = key
+
+        # Split to get immediate child
+        parts = relative_key.split(".")
+
+        if len(parts) == 1:
+            # This is a direct key at this level
+            value = db.get(key)
+            key_info = get_key_info(key)
+            items.append(
+                {
+                    "type": "key",
+                    "name": parts[0],
+                    "key": key,
+                    "value": value,
+                    "desc": key_info.get("desc", ""),
+                }
+            )
+        else:
+            # This is a subcategory
+            subcat_name = parts[0]
+            if subcat_name not in seen_subcats:
+                seen_subcats.add(subcat_name)
+                # Get description from schema if available
+                subcat_path = f"{path}.{subcat_name}" if path else subcat_name
+                desc = get_subcategory_description(subcat_path)
+                items.append({"type": "subcategory", "name": subcat_name, "desc": desc})
+
+    # Sort: subcategories first, then keys
+    items.sort(key=lambda x: (0 if x["type"] == "subcategory" else 1, x["name"]))
+
+    return items
+
+
+def get_subcategory_description(path: str) -> str:
+    """Get a friendly description for a subcategory from schema.
+
+    Args:
+        path: Path to subcategory (e.g., "database.influxdb")
+
+    Returns:
+        Description string
+    """
+    descriptions = {
+        "database": "Database Configuration",
+        "database.influxdb": "InfluxDB Settings",
+        "database.prometheus": "Prometheus Pushgateway Settings",
+        "database.timescaledb": "TimescaleDB (PostgreSQL) Settings",
+        "database.victoriametrics": "VictoriaMetrics Settings",
+        "sensors": "Sensor Configuration",
+        "sensors.bme280": "BME280 Sensor Settings",
+        "sensors.dht22": "DHT22 Sensor Settings",
+        "bluetooth": "Bluetooth Configuration",
+        "webui": "Web UI Configuration",
+        "data_collection": "Data Collection Settings",
+        "heating_control": "Heating Control Settings",
+        "humidity_control": "Humidity Control Settings",
+        "alerts": "Alert Configuration",
+        "persistence": "Data Persistence Settings",
+    }
+    return descriptions.get(path, "Configuration")
 
 
 def get_menu_options_for_key(key: str) -> list[tuple[str, str]] | None:
