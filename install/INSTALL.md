@@ -161,15 +161,14 @@ The installer will guide you through:
 To modify configuration after installation:
 
 ```bash
-# Option 1: Interactive config tool (for specific settings)
-cd /opt/filamentcontrol
-source filamentcontrol/bin/activate
-python scripts/config_tool.py --interactive
-
-# Option 2: Complete reconfiguration (encryption key, Vault, database, etc.)
 cd /opt/filamentcontrol
 sudo ./install/setup.sh
 ```
+
+**Configuration Options**:
+1. **Reconfigure everything** - Regenerate encryption keys, Vault, database, sensor settings
+2. **Modify specific settings** - Interactive menu for individual changes
+3. **Exit** - Keep current configuration
 
 The installer will ask:
 
@@ -323,10 +322,6 @@ pre-commit install
 ```bash
 # Run setup script for guided configuration
 sudo ../install/setup.sh
-
-# Or configure manually with config tool
-source filamentcontrol/bin/activate
-python scripts/config_tool.py --interactive
 ```
 
 See [Configuration Guide](#configuration-guide) below for detailed configuration options.
@@ -369,15 +364,17 @@ All configuration is now stored in an **encrypted SQLCipher database** (`config.
 
 ### Configuration Tool
 
-Use the interactive configuration tool to manage all settings:
+Use `setup.sh` to manage all configuration settings:
 
 ```bash
-source filamentcontrol/bin/activate
-python scripts/config_tool.py --interactive
+cd /opt/filamentcontrol
+sudo ./install/setup.sh
 ```
 
-**Letter-Based Menu Navigation**:
-- `B` - **Browse** sections (hierarchical navigation)
+**Configuration Management**:
+- **Full Reconfiguration**: Regenerate encryption keys, Vault setup, database, sensor
+- **Modify Settings**: Interactive menu for specific configuration changes
+- **Service Regeneration**: Auto-generates service files with updated paths/Vault vars
 - `N` - **Next** section (cycle through all sections)
 - `S` - **Search** for a key by name
 - `V` - **View** all configuration
@@ -412,12 +409,10 @@ Choose from 7 database backends. Configure during setup or change anytime with t
 #### InfluxDB v1 (Legacy)
 
 ```bash
-python scripts/config_tool.py --set database.type influxdb_v1
-python scripts/config_tool.py --set database.influxdb_v1.host "192.168.1.10"
-python scripts/config_tool.py --set database.influxdb_v1.port 8086
-python scripts/config_tool.py --set database.influxdb_v1.database "filamentbox"
-python scripts/config_tool.py --set database.influxdb_v1.username "admin"
-python scripts/config_tool.py --set database.influxdb_v1.password "secret"
+# Configure via setup.sh
+sudo ./install/setup.sh
+# Select: InfluxDB v1
+# Enter: host, port, database, username, password
 ```
 
 #### InfluxDB v2 (Modern)
@@ -442,9 +437,10 @@ python scripts/config_tool.py --set database.influxdb_v3.token "your-v3-token"
 #### Prometheus (Push Gateway)
 
 ```bash
-python scripts/config_tool.py --set database.type prometheus
-python scripts/config_tool.py --set database.prometheus.url "http://192.168.1.10:9091"
-python scripts/config_tool.py --set database.prometheus.job "filamentbox"
+# Configure via setup.sh  
+sudo ./install/setup.sh
+# Select: Prometheus
+# Enter: push gateway URL, job name
 ```
 
 #### TimescaleDB (PostgreSQL)
@@ -1267,15 +1263,12 @@ i2cdetect -y 1
 
 **Solutions**:
 ```bash
-# Verify GPIO pin number in encrypted config
-# Must use BCM numbering, not physical pin numbers
-python scripts/config_tool.py --get sensor.gpio_pin
+# Modify GPIO pin via setup.sh
+sudo ./install/setup.sh
+# Navigate to sensor configuration, update gpio_pin
 
 # Check wiring
 # Ensure 10kohm pull-up resistor between DATA and VCC
-
-# Try different GPIO pin
-python scripts/config_tool.py --set sensor.gpio_pin 17
 
 # Test sensor with simple script
 python -c "
@@ -1353,9 +1346,9 @@ python -m filamentbox.main --debug
 
 **Diagnosis**:
 ```bash
-# Check control configuration
-python scripts/config_tool.py --get heating_control
-python scripts/config_tool.py --get humidity_control
+# Check control configuration via setup.sh
+sudo ./install/setup.sh
+# View heating_control and humidity_control settings
 
 # Monitor control decisions
 sudo journalctl -u filamentbox.service -f | grep -i "heater\|fan"
@@ -1384,16 +1377,14 @@ relay.off()
 
 **Solutions**:
 ```bash
-# Increase hysteresis gap using config tool
-python scripts/config_tool.py --set heating_control.min_temp_c 18.0
-python scripts/config_tool.py --set heating_control.max_temp_c 23.0
+# Increase hysteresis gap using setup.sh
+sudo ./install/setup.sh
 
-python scripts/config_tool.py --set humidity_control.min_humidity 35.0
-python scripts/config_tool.py --set humidity_control.max_humidity 60.0
-
-# Increase check interval (seconds)
-python scripts/config_tool.py --set heating_control.check_interval 30
-python scripts/config_tool.py --set humidity_control.check_interval 30
+# Navigate to heating_control or humidity_control
+# Increase gap between min and max values:
+#   heating: min_temp_c = 18.0, max_temp_c = 23.0 (5C gap)
+#   humidity: min_humidity = 35.0, max_humidity = 60.0 (25% gap)
+#   check_interval = 30 seconds (reduce frequency)
 
 # Restart service to apply changes
 sudo systemctl restart filamentbox.service
@@ -1579,11 +1570,7 @@ sudo systemctl restart filamentbox.service   # Restart service
 sudo journalctl -u filamentbox.service -f    # View logs
 
 # Configuration management
-source /opt/filamentcontrol/filamentcontrol/bin/activate
-python scripts/config_tool.py --interactive  # Interactive config
-python scripts/config_tool.py --list         # View all config
-python scripts/config_tool.py --get key      # Get value
-python scripts/config_tool.py --set key val  # Set value
+sudo ./install/setup.sh                      # Interactive config
 
 # Manual testing
 source /opt/filamentcontrol/filamentcontrol/bin/activate

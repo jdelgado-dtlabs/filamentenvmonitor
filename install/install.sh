@@ -349,11 +349,6 @@ configure_environment() {
             echo
             echo -e "${CYAN}To modify configuration anytime, run:${NC}"
             echo -e "  ${CYAN}cd $INSTALL_DIR${NC}"
-            echo -e "  ${CYAN}source filamentcontrol/bin/activate${NC}"
-            echo -e "  ${CYAN}python scripts/config_tool.py --interactive${NC}"
-            echo
-            echo -e "${CYAN}Or to completely reconfigure:${NC}"
-            echo -e "  ${CYAN}cd $INSTALL_DIR${NC}"
             echo -e "  ${CYAN}sudo ./install/setup.sh${NC}"
             echo
             return

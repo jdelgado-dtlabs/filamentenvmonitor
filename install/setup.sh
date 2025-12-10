@@ -57,18 +57,48 @@ if [ -f "$CONFIG_DB" ]; then
             echo -e "${YELLOW}To make it permanent, add to your shell profile:${NC}"
             echo -e "${CYAN}  echo \"export FILAMENTBOX_CONFIG_KEY='your-encryption-key'\" >> ~/.bashrc${NC}"
             echo ""
-            echo -e "${YELLOW}Or the key file will be created automatically during setup.${NC}"
+            echo -e "${YELLOW}Or run setup again to regenerate keys.${NC}"
             echo ""
             exit 1
         fi
     fi
     
-    echo -e "${CYAN}Use the interactive configuration tool to manage settings:${NC}"
-    echo -e "${CYAN}  python scripts/config_tool.py --interactive${NC}"
+    # Configuration exists - offer to reconfigure or modify
+    echo -e "${CYAN}Configuration Management Options:${NC}"
+    echo "  1) Reconfigure everything (encryption key, Vault, database)"
+    echo "  2) Modify specific settings (interactive menu)"
+    echo "  3) Exit"
     echo ""
+    read -p "Enter choice (1-3): " CONFIG_CHOICE
     
-    # Launch config tool
-    launch_config_tool
+    case ${CONFIG_CHOICE} in
+        1)
+            echo -e "${YELLOW}This will regenerate encryption keys and reconfigure everything.${NC}"
+            read -p "Continue? (y/N): " CONFIRM
+            if [[ ! $CONFIRM =~ ^[Yy]$ ]]; then
+                exit 0
+            fi
+            # Continue to reconfiguration below
+            ;;
+        2)
+            # Use Python config tool for interactive editing
+            cd "$INSTALL_ROOT"
+            if [ -f "scripts/config_tool.py" ]; then
+                source "$INSTALL_ROOT/filamentcontrol/bin/activate" 2>/dev/null || true
+                python scripts/config_tool.py --interactive
+            else
+                echo -e "${RED}Config tool not found${NC}"
+            fi
+            exit 0
+            ;;
+        3)
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Invalid choice${NC}"
+            exit 1
+            ;;
+    esac
 fi
 
 # Check for legacy configuration files and auto-migrate

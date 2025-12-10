@@ -94,11 +94,7 @@ The installer will:
 
 **To reconfigure an existing installation**:
 ```bash
-# Option 1: Interactive configuration tool (recommended)
-source filamentcontrol/bin/activate
-python scripts/config_tool.py --interactive
-
-# Option 2: Complete reconfiguration
+cd /opt/filamentcontrol
 sudo ./install/setup.sh
 ```
 
@@ -106,32 +102,27 @@ sudo ./install/setup.sh
 
 ## Configuration
 
-Configuration is managed through an **encrypted SQLCipher database** with interactive menu-driven configuration tool.
+Configuration is managed through an **encrypted SQLCipher database** with the `setup.sh` script providing interactive configuration management.
 
-### Interactive Configuration Tool
+### Configuration Management
 
 ```bash
-source filamentcontrol/bin/activate
-python scripts/config_tool.py --interactive
+cd /opt/filamentcontrol
+sudo ./install/setup.sh
 ```
 
-**Features**:
-- **B** - Browse and edit configuration by section
-- **N** - Add new configuration values
-- **S** - Search for configuration keys
-- **V** - View all configuration
-- **Menu-based selection** for database types, sensor types, booleans, SSL modes
-- **Special tag editor** for key-value pairs
-- **Automatic type detection** and conversion
-- **Sensitive value masking** for passwords and tokens
+**Options**:
+- **Reconfigure everything** - Regenerate encryption keys, Vault, database, sensor settings
+- **Modify specific settings** - Interactive menu for individual configuration changes
 
 ### Key Configuration Areas
 - Database type and connection settings (7 database options)
+- Encryption key and HashiCorp Vault integration
 - Data collection intervals and batching
 - Sensor type and GPIO pins
 - Temperature and humidity control thresholds
 - Retry and persistence behavior
-- Custom tags for InfluxDB measurements
+- Custom tags for database measurements
 
 ### Encryption Key Storage
 
@@ -166,18 +157,8 @@ python -m filamentbox.main --debug   # Enable verbose debug logging
 
 ### Configuration Management
 ```bash
-# Interactive configuration tool
-source filamentcontrol/bin/activate
-python scripts/config_tool.py --interactive
-
-# View all configuration
-python scripts/config_tool.py --list
-
-# Get specific value
-python scripts/config_tool.py --get database.type
-
-# Set value
-python scripts/config_tool.py --set database.influxdb.host localhost
+# Modify configuration settings
+sudo ./install/setup.sh
 ```
 
 ### CLI Monitoring & Control Interface
@@ -272,21 +253,11 @@ The application supports optional GPIO relay control for both heating and humidi
 
 **Quick Setup**:
 ```bash
-# Configure using interactive tool
-python scripts/config_tool.py --interactive
+# Configure using setup script
+sudo ./install/setup.sh
 
-# Navigate to:
-# S - Select Section → heating_control
-# E - Edit Value → enabled = true
-# E - Edit Value → gpio_pin = 16
-# E - Edit Value → min_temp_c = 18.0
-# E - Edit Value → max_temp_c = 22.0
-
-# Or set directly via CLI
-python scripts/config_tool.py --set heating_control.enabled true
-python scripts/config_tool.py --set heating_control.gpio_pin 16
-python scripts/config_tool.py --set heating_control.min_temp_c 18.0
-python scripts/config_tool.py --set heating_control.max_temp_c 22.0
+# Navigate to heating_control or humidity_control section
+# Set: enabled = true, gpio_pin = 16, min_temp_c = 18.0, max_temp_c = 22.0
 ```
 
 ## Common Issues
@@ -295,7 +266,7 @@ Quick troubleshooting reference:
 
 | Symptom | Resolution |
 |--------|------------|
-| Database not found | Configure database with `python scripts/config_tool.py --interactive` |
+| Database not found | Configure database with `sudo ./install/setup.sh` |
 | Sensor read errors | Verify `sensor.type` in encrypted config matches hardware |
 | Service won't start | Check encryption key is available and config database exists |
 | Relay cycling rapidly | Increase gap between min/max thresholds in config |
@@ -310,10 +281,7 @@ python -m filamentbox.main
 python -m filamentbox.main --debug
 
 # Configuration management
-python scripts/config_tool.py --interactive  # Interactive menu
-python scripts/config_tool.py --list         # View all config
-python scripts/config_tool.py --get database.type
-python scripts/config_tool.py --set sensor.type BME280
+sudo ./install/setup.sh                      # Interactive config
 
 # Service management
 sudo systemctl status filamentbox.service
