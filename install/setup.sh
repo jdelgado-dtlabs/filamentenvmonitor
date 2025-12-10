@@ -565,18 +565,7 @@ EOF
     echo ""
 }
 
-# Function to launch interactive config tool
-launch_config_tool() {
-    echo -e "${CYAN}Starting interactive configuration tool...${NC}"
-    echo ""
-    cd "$INSTALL_ROOT"
-    python scripts/config_tool.py --interactive
-    
-    # Generate service files after configuration
-    generate_service_files
-    
-    exit 0
-}
+
 
 # ========================================
 # Main Script
@@ -621,13 +610,12 @@ if [ -f "$CONFIG_DB" ]; then
         fi
     fi
     
-    # Configuration exists - offer to reconfigure or modify
+    # Configuration exists - offer to reconfigure or exit
     echo -e "${CYAN}Configuration Management Options:${NC}"
     echo "  1) Reconfigure everything (encryption key, Vault, database)"
-    echo "  2) Modify specific settings (interactive menu)"
-    echo "  3) Exit"
+    echo "  2) Exit"
     echo ""
-    read -p "Enter choice (1-3): " CONFIG_CHOICE
+    read -p "Enter choice (1-2): " CONFIG_CHOICE
     
     case ${CONFIG_CHOICE} in
         1)
@@ -639,17 +627,6 @@ if [ -f "$CONFIG_DB" ]; then
             # Continue to reconfiguration below
             ;;
         2)
-            # Use Python config tool for interactive editing
-            cd "$INSTALL_ROOT"
-            if [ -f "scripts/config_tool.py" ]; then
-                source "$INSTALL_ROOT/filamentcontrol/bin/activate" 2>/dev/null || true
-                python scripts/config_tool.py --interactive
-            else
-                echo -e "${RED}Config tool not found${NC}"
-            fi
-            exit 0
-            ;;
-        3)
             exit 0
             ;;
         *)
@@ -690,7 +667,6 @@ if [ "$LEGACY_FILES_EXIST" = true ]; then
     echo -e "${YELLOW}Benefits of encrypted configuration:${NC}"
     echo "  - Passwords encrypted at rest (256-bit AES)"
     echo "  - Centralized configuration management"
-    echo "  - Interactive configuration tool"
     echo "  - Better security than plain text files"
     echo ""
     
@@ -767,9 +743,6 @@ if [ "$LEGACY_FILES_EXIST" = true ]; then
         # Generate service files
         generate_service_files
         
-        echo -e "${CYAN}You can now manage your configuration using:${NC}"
-        echo -e "${CYAN}  python scripts/config_tool.py --interactive${NC}"
-        echo ""
         exit 0
     else
         echo ""
@@ -821,5 +794,7 @@ echo ""
 echo -e "${YELLOW}The application will automatically load the key.${NC}"
 echo ""
 
-# Use config_tool.py for interactive setup
-launch_config_tool
+# Generate service files
+generate_service_files
+
+exit 0
