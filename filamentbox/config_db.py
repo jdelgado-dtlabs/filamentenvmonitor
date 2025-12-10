@@ -17,11 +17,44 @@ except ImportError:
 # Configuration database path
 CONFIG_DB_PATH = os.path.join(os.path.dirname(__file__), "..", "config.db")
 
+# Encryption key file path
+CONFIG_DB_KEY_FILE = os.path.join(os.path.dirname(__file__), "..", ".config_key")
+
 # Encryption key environment variable
 CONFIG_DB_KEY_ENV = "FILAMENTBOX_CONFIG_KEY"
 
 # Default encryption key (MUST be changed in production)
 DEFAULT_ENCRYPTION_KEY = "CHANGE_ME_IN_PRODUCTION_USE_STRONG_KEY"
+
+
+def _load_encryption_key() -> str:
+    """Load encryption key from environment variable or key file.
+
+    Priority:
+    1. FILAMENTBOX_CONFIG_KEY environment variable
+    2. .config_key file in application root
+    3. Default key (with warning)
+
+    Returns:
+        Encryption key string
+    """
+    # Try environment variable first
+    key = os.environ.get(CONFIG_DB_KEY_ENV)
+    if key:
+        return key
+
+    # Try key file
+    if os.path.exists(CONFIG_DB_KEY_FILE):
+        try:
+            with open(CONFIG_DB_KEY_FILE, "r") as f:
+                key = f.read().strip()
+                if key:
+                    return key
+        except Exception as e:
+            logging.warning(f"Failed to read key file {CONFIG_DB_KEY_FILE}: {e}")
+
+    # Fall back to default (with warning)
+    return DEFAULT_ENCRYPTION_KEY
 
 
 class ConfigDB:
@@ -32,20 +65,21 @@ class ConfigDB:
 
         Args:
             db_path: Path to the SQLCipher database file
-            encryption_key: Encryption key (if None, loads from environment or uses default)
+            encryption_key: Encryption key (if None, loads from environment, key file, or uses default)
         """
         if sqlcipher is None:
             raise ImportError("SQLCipher not installed. Install with: pip install pysqlcipher3")
 
         self.db_path = db_path
 
-        # Get encryption key from environment or parameter
+        # Get encryption key from parameter, environment, or key file
         if encryption_key is None:
-            encryption_key = os.environ.get(CONFIG_DB_KEY_ENV, DEFAULT_ENCRYPTION_KEY)
+            encryption_key = _load_encryption_key()
 
         if encryption_key == DEFAULT_ENCRYPTION_KEY:
             logging.warning(
-                "Using default encryption key! Set FILAMENTBOX_CONFIG_KEY environment variable for production."
+                "Using default encryption key! Set FILAMENTBOX_CONFIG_KEY environment variable "
+                "or create .config_key file for production."
             )
 
         self.encryption_key = encryption_key

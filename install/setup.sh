@@ -19,6 +19,7 @@ INSTALL_ROOT="$(dirname "$SCRIPT_DIR")"
 CONFIG_DB="$INSTALL_ROOT/filamentbox_config.db"
 CONFIG_YAML="$INSTALL_ROOT/config.yaml"
 ENV_FILE="$INSTALL_ROOT/.env"
+KEY_FILE="$INSTALL_ROOT/.config_key"
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}FilamentBox Configuration Setup${NC}"
@@ -37,17 +38,26 @@ if [ -f "$CONFIG_DB" ]; then
     
     # Check if encryption key is set
     if [ -z "$FILAMENTBOX_CONFIG_KEY" ]; then
-        echo -e "${RED}ERROR: FILAMENTBOX_CONFIG_KEY environment variable not set!${NC}"
-        echo ""
-        echo -e "${YELLOW}Please set your encryption key before managing configuration:${NC}"
-        echo -e "${CYAN}  export FILAMENTBOX_CONFIG_KEY='your-encryption-key'${NC}"
-        echo ""
-        echo -e "${YELLOW}To make it permanent, add to your shell profile:${NC}"
-        echo -e "${CYAN}  echo \"export FILAMENTBOX_CONFIG_KEY='your-encryption-key'\" >> ~/.bashrc${NC}"
-        echo ""
-        echo -e "${YELLOW}Then restart this script to manage your configuration.${NC}"
-        echo ""
-        exit 1
+        # Try to load from key file
+        if [ -f "$KEY_FILE" ]; then
+            echo -e "${CYAN}Loading encryption key from secure storage...${NC}"
+            FILAMENTBOX_CONFIG_KEY=$(cat "$KEY_FILE")
+            export FILAMENTBOX_CONFIG_KEY
+            echo ""
+        else
+            echo -e "${RED}ERROR: FILAMENTBOX_CONFIG_KEY environment variable not set!${NC}"
+            echo -e "${RED}And key file not found at: $KEY_FILE${NC}"
+            echo ""
+            echo -e "${YELLOW}Please set your encryption key before managing configuration:${NC}"
+            echo -e "${CYAN}  export FILAMENTBOX_CONFIG_KEY='your-encryption-key'${NC}"
+            echo ""
+            echo -e "${YELLOW}To make it permanent, add to your shell profile:${NC}"
+            echo -e "${CYAN}  echo \"export FILAMENTBOX_CONFIG_KEY='your-encryption-key'\" >> ~/.bashrc${NC}"
+            echo ""
+            echo -e "${YELLOW}Or the key file will be created automatically during setup.${NC}"
+            echo ""
+            exit 1
+        fi
     fi
     
     echo -e "${CYAN}Use the interactive configuration tool to manage settings:${NC}"
@@ -137,12 +147,20 @@ if [ "$LEGACY_FILES_EXIST" = true ]; then
         fi
         
         echo ""
-        echo -e "${YELLOW}IMPORTANT - Save Your Encryption Key:${NC}"
+        
+        # Save encryption key to secure file
+        save_encryption_key
+        
+        echo -e "${YELLOW}IMPORTANT - Encryption Key Security:${NC}"
         echo ""
-        echo -e "${YELLOW}Add this to your shell profile (~/.bashrc or ~/.bash_profile):${NC}"
+        echo -e "${GREEN}Encryption key saved to:${NC}"
+        echo -e "${GREEN}  $KEY_FILE${NC}"
+        echo -e "${GREEN}  (Permissions: 600 - owner read/write only)${NC}"
+        echo ""
+        echo -e "${YELLOW}The application will automatically use this key file.${NC}"
+        echo ""
+        echo -e "${YELLOW}For additional security, you can also set environment variable:${NC}"
         echo -e "${CYAN}  export FILAMENTBOX_CONFIG_KEY='$ENCRYPTION_KEY'${NC}"
-        echo ""
-        echo -e "${YELLOW}Or add to systemd service file if running as a service.${NC}"
         echo ""
         echo -e "${CYAN}You can now manage your configuration using:${NC}"
         echo -e "${CYAN}  python scripts/config_tool.py --interactive${NC}"
@@ -180,12 +198,19 @@ echo -e "${BLUE}========================================${NC}"
 # Prompt for encryption key
 prompt_encryption_key
 
-echo -e "${YELLOW}IMPORTANT - Save Your Encryption Key:${NC}"
+# Save encryption key to secure file
+save_encryption_key
+
+echo -e "${YELLOW}IMPORTANT - Encryption Key Security:${NC}"
 echo ""
-echo -e "${YELLOW}Add this to your shell profile (~/.bashrc or ~/.bash_profile):${NC}"
+echo -e "${GREEN}Encryption key saved to:${NC}"
+echo -e "${GREEN}  $KEY_FILE${NC}"
+echo -e "${GREEN}  (Permissions: 600 - owner read/write only)${NC}"
+echo ""
+echo -e "${YELLOW}The application will automatically use this key file.${NC}"
+echo ""
+echo -e "${YELLOW}For additional security, you can also set environment variable:${NC}"
 echo -e "${CYAN}  export FILAMENTBOX_CONFIG_KEY='$ENCRYPTION_KEY'${NC}"
-echo ""
-echo -e "${YELLOW}Or add to systemd service file if running as a service.${NC}"
 echo ""
 
 # Use config_tool.py for interactive setup
@@ -270,6 +295,20 @@ ensure_pysqlcipher3() {
     else
         echo -e "${GREEN}pysqlcipher3 already installed.${NC}"
     fi
+    echo ""
+}
+
+# Function to save encryption key to secure file
+save_encryption_key() {
+    echo -e "${CYAN}Saving encryption key to secure storage...${NC}"
+    
+    # Write key to file
+    echo "$ENCRYPTION_KEY" > "$KEY_FILE"
+    
+    # Set restrictive permissions (owner read/write only)
+    chmod 600 "$KEY_FILE"
+    
+    echo -e "${GREEN}Encryption key saved securely.${NC}"
     echo ""
 }
 
