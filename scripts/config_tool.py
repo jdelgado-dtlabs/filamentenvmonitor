@@ -1094,10 +1094,14 @@ def edit_tags_menu(db: ConfigDB, base_key: str = "data_collection.tags"):
 
 def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
     """Edit a single configuration value."""
-    # Special handling for tags
-    if key == "database.influxdb.tags":
+    # Special handling for tags and grouping keys (dict-based key-value pairs)
+    if key in ["database.influxdb.tags", "database.prometheus.grouping_keys"]:
         # For dict-based tags, use submenu with individual tag management
         import json
+
+        # Determine label based on key type
+        item_label = "grouping key" if "grouping_keys" in key else "tag"
+        items_label = "grouping keys" if "grouping_keys" in key else "tags"
 
         while True:
             current_value = db.get(key)
@@ -1109,17 +1113,17 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
                 print(f"Description: {description}\n")
 
             if current_value:
-                print("Current tags:\n")
+                print(f"Current {items_label}:\n")
                 for tag_name, tag_value in sorted(current_value.items()):
                     print(f"  {tag_name:<20} = {tag_value}")
                 print()
             else:
-                print("No tags configured.\n")
+                print(f"No {items_label} configured.\n")
 
-            print("A - Add/Edit tag")
-            print("D - Delete tag")
+            print(f"A - Add/Edit {item_label}")
+            print(f"D - Delete {item_label}")
             print("J - Edit as JSON (advanced)")
-            print("C - Clear all tags")
+            print(f"C - Clear all {items_label}")
             print("B - Back")
             print("Q - Quit")
             print()
@@ -1132,10 +1136,10 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
             elif choice == "B":
                 return
             elif choice == "A":
-                # Add or edit a tag
-                tag_name = input("\nEnter tag name: ").strip()
+                # Add or edit a tag/key
+                tag_name = input(f"\nEnter {item_label} name: ").strip()
                 if not tag_name:
-                    print("Tag name cannot be empty")
+                    print(f"{item_label.capitalize()} name cannot be empty")
                     input("\nPress Enter to continue...")
                     continue
 
@@ -1144,7 +1148,7 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
 
                 tag_value = input(f"Enter value for '{tag_name}': ").strip()
                 if not tag_value:
-                    print("Tag value cannot be empty")
+                    print(f"{item_label.capitalize()} value cannot be empty")
                     input("\nPress Enter to continue...")
                     continue
 
@@ -1154,19 +1158,19 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
                 input("\nPress Enter to continue...")
 
             elif choice == "D":
-                # Delete a tag
+                # Delete a tag/key
                 if not current_value:
-                    print("\nNo tags to delete")
+                    print(f"\nNo {items_label} to delete")
                     input("\nPress Enter to continue...")
                     continue
 
-                tag_name = input("\nEnter tag name to delete: ").strip()
+                tag_name = input(f"\nEnter {item_label} name to delete: ").strip()
                 if tag_name in current_value:
                     del current_value[tag_name]
                     db.set(key, current_value, description)
-                    print(f"\n✓ Deleted tag: {tag_name}")
+                    print(f"\n✓ Deleted {item_label}: {tag_name}")
                 else:
-                    print(f"\n✗ Tag '{tag_name}' not found")
+                    print(f"\n✗ {item_label.capitalize()} '{tag_name}' not found")
                 input("\nPress Enter to continue...")
 
             elif choice == "J":
@@ -1196,11 +1200,11 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
                     input("\nPress Enter to continue...")
 
             elif choice == "C":
-                # Clear all tags
-                confirm = input("Clear all tags? (yes/no): ").strip().lower()
+                # Clear all tags/keys
+                confirm = input(f"Clear all {items_label}? (yes/no): ").strip().lower()
                 if confirm == "yes":
                     db.set(key, {}, description)
-                    print("\n✓ Cleared all tags")
+                    print(f"\n✓ Cleared all {items_label}")
                     input("\nPress Enter to continue...")
             else:
                 print("Invalid option.")
