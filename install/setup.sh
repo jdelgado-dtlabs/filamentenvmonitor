@@ -612,101 +612,22 @@ if [ -f "$CONFIG_DB" ]; then
     
     # Configuration exists - offer management options
     echo -e "${CYAN}Configuration Management:${NC}"
-    echo "  1) View current configuration"
-    echo "  2) Update configuration values"
-    echo "  3) Exit"
+    echo "  1) Manage configuration (interactive tool)"
+    echo "  2) Exit"
     echo ""
-    read -p "Enter choice (1-3): " CONFIG_CHOICE
+    read -p "Enter choice (1-2): " CONFIG_CHOICE
     
     case ${CONFIG_CHOICE} in
         1)
-            # View configuration
+            # Launch config tool
             echo ""
-            echo -e "${CYAN}Current Configuration:${NC}"
+            echo -e "${CYAN}Starting configuration tool...${NC}"
             echo ""
-            "$INSTALL_ROOT/filamentcontrol/bin/python" - <<EOF
-import sys
-sys.path.insert(0, '$INSTALL_ROOT')
-from filamentbox.config_db import ConfigDB
-
-try:
-    db = ConfigDB(db_path='$CONFIG_DB', encryption_key='$FILAMENTBOX_CONFIG_KEY')
-    settings = db.get_all()
-    
-    for key in sorted(settings.keys()):
-        value = settings[key]
-        # Mask sensitive values
-        if 'password' in key.lower() or 'key' in key.lower() or 'token' in key.lower():
-            value = '***REDACTED***'
-        print(f"  {key}: {value}")
-    print()
-except Exception as e:
-    print(f"Error reading configuration: {e}")
-    sys.exit(1)
-EOF
-            echo ""
-            read -p "Press ENTER to continue..."
-            exec "$0" "$@"
+            cd "$INSTALL_ROOT"
+            "$INSTALL_ROOT/filamentcontrol/bin/python" scripts/config_tool.py --interactive
+            exit 0
             ;;
         2)
-            # Update configuration
-            echo ""
-            echo -e "${CYAN}Update Configuration Values:${NC}"
-            echo ""
-            "$INSTALL_ROOT/filamentcontrol/bin/python" - <<EOF
-import sys
-sys.path.insert(0, '$INSTALL_ROOT')
-from filamentbox.config_db import ConfigDB
-
-try:
-    db = ConfigDB(db_path='$CONFIG_DB', encryption_key='$FILAMENTBOX_CONFIG_KEY')
-    settings = db.get_all()
-    
-    print("Available settings:")
-    for i, key in enumerate(sorted(settings.keys()), 1):
-        print(f"  {i}) {key}")
-    print()
-    
-    choice = input("Enter setting number to update (or 'q' to quit): ").strip()
-    if choice.lower() == 'q':
-        sys.exit(0)
-    
-    try:
-        idx = int(choice) - 1
-        keys = sorted(settings.keys())
-        if idx < 0 or idx >= len(keys):
-            print("Invalid choice")
-            sys.exit(1)
-        
-        key = keys[idx]
-        current = settings[key]
-        
-        # Mask sensitive current values
-        if 'password' in key.lower() or 'key' in key.lower() or 'token' in key.lower():
-            display_current = '***REDACTED***'
-        else:
-            display_current = current
-        
-        print(f"\nCurrent value for '{key}': {display_current}")
-        new_value = input(f"Enter new value (or press ENTER to keep current): ").strip()
-        
-        if new_value:
-            db.set(key, new_value)
-            print(f"\n✓ Updated {key}")
-        else:
-            print("\nNo change made")
-    except (ValueError, IndexError):
-        print("Invalid choice")
-        sys.exit(1)
-except Exception as e:
-    print(f"Error updating configuration: {e}")
-    sys.exit(1)
-EOF
-            echo ""
-            read -p "Press ENTER to continue..."
-            exec "$0" "$@"
-            ;;
-        3)
             exit 0
             ;;
         *)
