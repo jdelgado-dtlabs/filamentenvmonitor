@@ -163,8 +163,17 @@ def _humidity_control_loop() -> None:
         logging.info("Fan turned OFF (humidity control stopped)")
 
 
+def get_humidity_thread() -> Optional[threading.Thread]:
+    """Get the humidity control thread instance.
+
+    Returns:
+        The humidity control thread if it exists, None otherwise.
+    """
+    return _control_thread
+
+
 def start_humidity_control() -> None:
-    """Start the humidity control thread if enabled in configuration."""
+    """Start the humidity control thread."""
     global _control_thread
 
     enabled = get("humidity_control.enabled", False)

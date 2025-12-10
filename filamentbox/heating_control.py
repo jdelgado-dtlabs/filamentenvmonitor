@@ -182,6 +182,15 @@ def _heating_control_loop() -> None:
         logger.error(f"Error turning off heater during shutdown: {e}")
 
 
+def get_heating_thread() -> Optional[threading.Thread]:
+    """Get the heating control thread instance.
+
+    Returns:
+        The heating control thread if it exists, None otherwise.
+    """
+    return _heating_thread
+
+
 def start_heating_control() -> None:
     """Start the heating control thread.
 

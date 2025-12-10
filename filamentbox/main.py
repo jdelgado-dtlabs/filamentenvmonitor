@@ -8,11 +8,13 @@ import time
 
 from .config import get
 from .heating_control import (
+    get_heating_thread,
     start_heating_control,
     stop_heating_control,
     update_temperature,
 )
 from .humidity_control import (
+    get_humidity_thread,
     start_humidity_control,
     stop_humidity_control,
     update_humidity,
@@ -164,6 +166,16 @@ def main() -> None:
                 logging.critical("Database writer thread has exited unexpectedly!")
             if not collector_thread.is_alive():
                 logging.critical("Data collector thread has exited unexpectedly!")
+
+            # Monitor control threads if they're running
+            heating_thread = get_heating_thread()
+            if heating_thread is not None and not heating_thread.is_alive():
+                logging.critical("Heating control thread has exited unexpectedly!")
+
+            humidity_thread = get_humidity_thread()
+            if humidity_thread is not None and not humidity_thread.is_alive():
+                logging.critical("Humidity control thread has exited unexpectedly!")
+
             time.sleep(1)
     except KeyboardInterrupt:
         logging.info("Keyboard interrupt received. Stopping...")
