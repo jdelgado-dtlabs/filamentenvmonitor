@@ -356,23 +356,34 @@ def list_config(db: ConfigDB, prefix: str = ""):
 
 def get_value(db: ConfigDB, key: str):
     """Get a single configuration value."""
+    import json
+
     value = db.get(key)
     if value is None:
         print(f"Configuration key '{key}' not found")
         return
 
-    print(f"\n{key} = {value}")
+    # Pretty-print dicts as JSON
+    if isinstance(value, dict):
+        print(f"\n{key} = {json.dumps(value, indent=2)}")
+    else:
+        print(f"\n{key} = {value}")
 
 
 def set_value(db: ConfigDB, key: str, value: str = None, description: str = ""):
     """Set a configuration value interactively."""
+    import json
+
     # Determine value type from existing config or ask user
     existing = db.get(key)
 
     if value is None:
         # Interactive mode
         if existing is not None:
-            print(f"Current value: {existing}")
+            if isinstance(existing, dict):
+                print(f"Current value: {json.dumps(existing, indent=2)}")
+            else:
+                print(f"Current value: {existing}")
 
         # Check if this is a sensitive value
         is_sensitive = any(
@@ -382,9 +393,26 @@ def set_value(db: ConfigDB, key: str, value: str = None, description: str = ""):
         if is_sensitive:
             value = getpass.getpass(f"Enter new value for '{key}': ")
         else:
+            # Check if this should be a dict/JSON value based on key name
+            if "tags" in key.lower() or (existing is not None and isinstance(existing, dict)):
+                print('(Enter JSON object, e.g., {"location": "garage", "device": "pi1"})')
             value = input(f"Enter new value for '{key}': ")
 
     # Type conversion
+    # First try to parse as JSON (for dicts, lists, etc.)
+    try:
+        parsed_value = json.loads(value)
+        # Successfully parsed JSON - use it
+        db.set(key, parsed_value, description)
+        if isinstance(parsed_value, dict):
+            print(f"✓ Set {key} = {json.dumps(parsed_value)}")
+        else:
+            print(f"✓ Set {key} = {parsed_value}")
+        return
+    except (json.JSONDecodeError, TypeError):
+        # Not JSON, continue with type inference
+        pass
+
     if existing is not None:
         # Use same type as existing value
         if isinstance(existing, bool):
@@ -393,6 +421,10 @@ def set_value(db: ConfigDB, key: str, value: str = None, description: str = ""):
             value = int(value)
         elif isinstance(existing, float):
             value = float(value)
+        elif isinstance(existing, dict):
+            # Already tried JSON parsing above, this shouldn't happen
+            print(f"Error: Expected JSON object for {key}")
+            return
         # else keep as string
     else:
         # Try to infer type
