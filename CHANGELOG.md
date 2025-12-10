@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **Installation Workflow Clarification**
+  - `install.sh` is now clearly the main entry point for all installations and updates
+  - `setup.sh` focused on configuration management (can be run independently)
+  - Updated documentation to reflect proper usage patterns
+
 ## [2.0.0] - 2025-01-XX
 
 ### 🔐 Security Overhaul

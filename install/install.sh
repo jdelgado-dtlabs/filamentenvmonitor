@@ -338,24 +338,38 @@ configure_environment() {
     echo "═══════════════════"
     echo
     
-    if [ -f "$INSTALL_DIR/filamentbox.db" ]; then
-        echo -e "${YELLOW}Encrypted configuration database already exists${NC}"
+    # Check if configuration already exists
+    if [ -f "$INSTALL_DIR/filamentbox_config.db" ] && [ -f "$INSTALL_DIR/.config_key" ]; then
+        echo -e "${GREEN}✓ Encrypted configuration database exists${NC}"
+        echo -e "${GREEN}✓ Encryption key file exists${NC}"
+        echo
         read -p "Would you like to reconfigure? (y/N): " UPDATE_CONFIG
         if [[ ! $UPDATE_CONFIG =~ ^[Yy]$ ]]; then
             echo -e "${BLUE}Keeping existing configuration${NC}"
-            echo -e "${BLUE}To modify configuration later, run:${NC}"
-            echo -e "  python scripts/config_tool.py --interactive"
+            echo
+            echo -e "${CYAN}To modify configuration anytime, run:${NC}"
+            echo -e "  ${CYAN}cd $INSTALL_DIR${NC}"
+            echo -e "  ${CYAN}source filamentcontrol/bin/activate${NC}"
+            echo -e "  ${CYAN}python scripts/config_tool.py --interactive${NC}"
+            echo
+            echo -e "${CYAN}Or to completely reconfigure:${NC}"
+            echo -e "  ${CYAN}cd $INSTALL_DIR${NC}"
+            echo -e "  ${CYAN}sudo ./install/setup.sh${NC}"
             echo
             return
         fi
     fi
     
     # Run setup script (generates encryption key, configures database, generates service files)
+    echo -e "${CYAN}Running configuration setup...${NC}"
+    echo
     cd "$INSTALL_DIR"
     if [ -f "$INSTALL_DIR/install/setup.sh" ]; then
         bash "$INSTALL_DIR/install/setup.sh"
     else
-        echo -e "${YELLOW}Setup script not found, skipping configuration${NC}"
+        echo -e "${RED}Error: Setup script not found at $INSTALL_DIR/install/setup.sh${NC}"
+        echo -e "${YELLOW}You'll need to configure manually using:${NC}"
+        echo -e "  ${CYAN}python scripts/config_tool.py --interactive${NC}"
     fi
     echo
 }

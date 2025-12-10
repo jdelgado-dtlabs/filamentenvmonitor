@@ -107,7 +107,7 @@ IN/Signal    -> GPIO 16 or 20 (configurable)
 
 ## Quick Installation
 
-The master installer provides the easiest installation method with interactive directory selection and automatic configuration.
+The master installer (`install.sh`) handles everything: directory setup, virtual environment, dependencies, configuration, and service installation.
 
 ### Step 1: Download the Repository
 
@@ -124,79 +124,52 @@ tar -xzf v2.0.0.tar.gz
 cd filamentenvmonitor-2.0.0
 ```
 
-### Step 2: Run Setup Script
-
-Run the interactive setup script to configure your encrypted database:
-
-```bash
-sudo ./install/setup.sh
-```
-
-The setup script will:
-
-1. **Generate Encryption Key**:
-   - Creates a cryptographically strong 64-character key
-   - Displays the key for you to save securely
-   - Stores in `.config_key` file with 600 permissions
-
-2. **Configure HashiCorp Vault (Optional)**:
-   - Asks if Vault is available for enterprise deployments
-   - Offers to install hvac library if needed
-   - Collects Vault server URL and authentication details
-   - Stores encryption key in Vault for centralized secret management
-   - Falls back to local file storage if Vault not configured
-
-3. **Configure Database Backend**:
-   - Choose from 7 database options:
-     - InfluxDB v1 (legacy)
-     - InfluxDB v2 (modern with organizations/buckets)
-     - InfluxDB v3 (latest with Apache Arrow)
-     - Prometheus (push gateway)
-     - TimescaleDB (PostgreSQL time-series)
-     - VictoriaMetrics (high-performance metrics)
-     - None (local-only mode)
-   - Enter connection details for chosen backend
-
-4. **Configure Sensor**:
-   - Select sensor type: BME280 (I2C), DHT22 (GPIO), DHT11 (GPIO)
-   - Configure GPIO pins if using DHT sensors
-   - Set calibration values
-
-5. **Optional Features**:
-   - Heating Control: Enable temperature control with relay
-   - Humidity Control: Enable humidity control with relay
-   - Data Collection: Set read intervals, batch sizes, tags
-
-6. **Generate Service Files**:
-   - Auto-generates systemd service files
-   - Embeds Vault environment variables if configured
-   - Uses dynamic installation path detection
-
-7. **Migrate Legacy Configuration**:
-   - Automatically imports from old `config.yaml` and `.env` files
-   - Backs up and removes legacy configuration files
-   - Preserves all existing settings
-
-**Interactive Configuration Tool**:
-After setup, use the configuration tool anytime:
-```bash
-python scripts/config_tool.py --interactive
-```
-
-Features:
-- Letter-based menu navigation (B/N/S/V/Q/E/D/C)
-- Browse by section, search by key
-- Menu selection for predefined values
-- Special tag editor for key-value pairs
-- Type-safe value editing
-
-### Step 3: Run the Master Installer
+### Step 2: Run the Master Installer
 
 ```bash
 sudo ./install/install.sh
 ```
 
-### Step 4: Follow Interactive Prompts
+### Step 3: Follow Interactive Prompts
+
+The installer will guide you through:
+
+1. **Installation Directory Selection**:
+   - Default: `/opt/filamentcontrol`
+   - Current directory
+   - Custom path
+
+2. **Configuration Setup** (automated via `setup.sh`):
+   - Vault configuration (optional)
+   - Encryption key generation
+   - Database backend selection (7 options)
+   - Sensor type and pins
+   - Optional heating/humidity control
+
+3. **Virtual Environment & Dependencies**:
+   - Creates Python venv
+   - Installs all dependencies
+   - Installs SQLCipher and Vault libraries
+
+4. **Service Installation**:
+   - Generates service files with dynamic paths
+   - Installs main and web UI services
+   - Optionally starts services
+
+### Step 4: Reconfiguration (Optional)
+
+To modify configuration after installation:
+
+```bash
+# Option 1: Interactive config tool (for specific settings)
+cd /opt/filamentcontrol
+source filamentcontrol/bin/activate
+python scripts/config_tool.py --interactive
+
+# Option 2: Complete reconfiguration (encryption key, Vault, database, etc.)
+cd /opt/filamentcontrol
+sudo ./install/setup.sh
+```
 
 The installer will ask:
 
@@ -1576,9 +1549,18 @@ sudo systemctl status filamentbox.service
 - **Changelog**: [CHANGELOG.md](../CHANGELOG.md) - Version history
 
 ### Installation Scripts
-- **Master Installer**: `install.sh` - Interactive installation with directory selection
-- **Service Installer**: `install_service.sh` - Main application service installation
-- **Web UI Installer**: `install_webui_service.sh` - Web UI service installation
+- **Master Installer**: `install.sh` - Main entry point for installation and updates
+  - Handles directory setup, venv creation, dependencies
+  - Calls setup.sh for configuration
+  - Installs systemd services
+- **Configuration Manager**: `setup.sh` - Encrypted configuration setup and management
+  - Generates encryption keys
+  - Configures Vault integration
+  - Interactive database and sensor configuration
+  - Generates service files with dynamic paths
+- **Service Installers**: 
+  - `install_service.sh` - Main application service
+  - `install_webui_service.sh` - Web UI service
 
 ### Support
 - **GitHub Issues**: https://github.com/jdelgado-dtlabs/filamentenvmonitor/issues

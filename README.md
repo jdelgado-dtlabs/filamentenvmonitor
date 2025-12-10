@@ -81,22 +81,28 @@ A Python 3.13 application for monitoring temperature and humidity in 3D printer 
 git clone https://github.com/jdelgado-dtlabs/filamentenvmonitor.git
 cd filamentenvmonitor
 
-# Run the interactive setup (creates encrypted configuration)
-./install/setup.sh
-
-# Install services (auto-configured for your installation)
-sudo ./install/install_service.sh
-sudo ./install/install_webui_service.sh
+# Run the installer (handles everything: venv, dependencies, config, services)
+sudo ./install/install.sh
 ```
 
-The setup script will:
-1. Ask if you want to use HashiCorp Vault (optional)
-2. Auto-generate a strong encryption key
-3. Configure your database and sensor settings interactively
-4. Generate systemd service files for your installation
-5. Save everything securely
+The installer will:
+1. Prompt for installation directory
+2. Create Python virtual environment and install dependencies
+3. Run configuration setup (encryption key, Vault, database, sensor)
+4. Generate systemd service files
+5. Install and start services
 
-**For detailed installation instructions, see the [Encryption Key Security Guide](docs/ENCRYPTION_KEY_SECURITY.md) and [Installation Guide](install/INSTALL.md)**
+**To reconfigure an existing installation**:
+```bash
+# Option 1: Interactive configuration tool (recommended)
+source filamentcontrol/bin/activate
+python scripts/config_tool.py --interactive
+
+# Option 2: Complete reconfiguration
+sudo ./install/setup.sh
+```
+
+**For detailed installation instructions, see the [Installation Guide](install/INSTALL.md)**
 
 ## Configuration
 

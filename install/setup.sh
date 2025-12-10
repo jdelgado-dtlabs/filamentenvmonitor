@@ -1,7 +1,10 @@
 #!/bin/bash
-# FilamentBox Configuration Setup Script
-# v2.0+ - Encrypted Configuration Database Only
-# All configuration is stored in encrypted SQLCipher database
+# FilamentBox Configuration Management Script
+# v2.0+ - Encrypted Configuration Database
+#
+# This script manages encrypted configuration setup and updates.
+# Run install.sh for fresh installations or updates.
+# Run this script directly to reconfigure an existing installation.
 
 set -e
 
@@ -22,7 +25,7 @@ ENV_FILE="$INSTALL_ROOT/.env"
 KEY_FILE="$INSTALL_ROOT/.config_key"
 
 echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}FilamentBox Configuration Setup${NC}"
+echo -e "${BLUE}FilamentBox Configuration Manager${NC}"
 echo -e "${BLUE}v2.0 - Encrypted Database${NC}"
 echo -e "${BLUE}========================================${NC}"
 echo ""
