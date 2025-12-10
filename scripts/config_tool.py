@@ -17,6 +17,64 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from filamentbox.config_db import ConfigDB, CONFIG_DB_PATH, CONFIG_DB_KEY_ENV
 
 
+# Configuration schema: defines allowed configuration keys
+CONFIG_SCHEMA = {
+    "database": {
+        "influxdb": {
+            "enabled": {"type": "bool", "desc": "Enable InfluxDB data storage"},
+            "url": {"type": "str", "desc": "InfluxDB server URL"},
+            "token": {"type": "str", "desc": "InfluxDB authentication token", "sensitive": True},
+            "org": {"type": "str", "desc": "InfluxDB organization name"},
+            "bucket": {"type": "str", "desc": "InfluxDB bucket name"},
+        },
+        "sqlite": {
+            "enabled": {"type": "bool", "desc": "Enable SQLite data storage"},
+            "path": {"type": "str", "desc": "Path to SQLite database file"},
+        },
+    },
+    "sensors": {
+        "bme280": {
+            "enabled": {"type": "bool", "desc": "Enable BME280 sensor"},
+            "i2c_address": {"type": "str", "desc": "I2C address (e.g., 0x76)"},
+        },
+        "dht22": {
+            "enabled": {"type": "bool", "desc": "Enable DHT22 sensor"},
+            "gpio_pin": {"type": "int", "desc": "GPIO pin number"},
+        },
+    },
+    "bluetooth": {
+        "enabled": {"type": "bool", "desc": "Enable Bluetooth scanning"},
+        "scan_interval": {"type": "int", "desc": "Scan interval in seconds"},
+        "device_timeout": {"type": "int", "desc": "Device timeout in seconds"},
+    },
+    "webui": {
+        "enabled": {"type": "bool", "desc": "Enable web UI"},
+        "host": {"type": "str", "desc": "Web UI host address"},
+        "port": {"type": "int", "desc": "Web UI port number"},
+    },
+    "notifications": {
+        "telegram": {
+            "enabled": {"type": "bool", "desc": "Enable Telegram notifications"},
+            "bot_token": {"type": "str", "desc": "Telegram bot token", "sensitive": True},
+            "chat_id": {"type": "str", "desc": "Telegram chat ID"},
+        },
+        "email": {
+            "enabled": {"type": "bool", "desc": "Enable email notifications"},
+            "smtp_host": {"type": "str", "desc": "SMTP server host"},
+            "smtp_port": {"type": "int", "desc": "SMTP server port"},
+            "username": {"type": "str", "desc": "SMTP username"},
+            "password": {"type": "str", "desc": "SMTP password", "sensitive": True},
+            "from_addr": {"type": "str", "desc": "From email address"},
+            "to_addr": {"type": "str", "desc": "To email address"},
+        },
+    },
+    "monitoring": {
+        "interval": {"type": "int", "desc": "Data collection interval in seconds"},
+        "log_level": {"type": "str", "desc": "Logging level (DEBUG, INFO, WARNING, ERROR)"},
+    },
+}
+
+
 def print_header(text: str):
     """Print a formatted header."""
     print("\n" + "=" * 60)
@@ -583,53 +641,170 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
 
 
 def add_new_value(db: ConfigDB):
-    """Add a new configuration value."""
+    """Add a new configuration value using schema-guided selection."""
     print_header("Add New Configuration")
 
-    key = input("Enter configuration key (e.g., database.influxdb.host): ").strip()
-    if not key:
-        print("Key cannot be empty")
+    # Step 1: Select category
+    categories = sorted(CONFIG_SCHEMA.keys())
+    print("Select category:\n")
+    for i, cat in enumerate(categories, 1):
+        print(f"{i}. {cat}")
+    print("Q - Cancel")
+    print()
+
+    cat_choice = input("Select category (number or Q): ").strip().upper()
+    if cat_choice == "Q":
+        return
+
+    try:
+        cat_idx = int(cat_choice) - 1
+        if cat_idx < 0 or cat_idx >= len(categories):
+            print("Invalid choice")
+            input("\nPress Enter to continue...")
+            return
+        selected_category = categories[cat_idx]
+    except ValueError:
+        print("Invalid input")
         input("\nPress Enter to continue...")
         return
 
-    # Check if key already exists
-    if db.get(key) is not None:
-        print(f"\nWarning: Key '{key}' already exists")
-        overwrite = input("Overwrite? (yes/no): ").strip().lower()
-        if overwrite != "yes":
-            print("Cancelled")
+    # Step 2: Select subcategory (if nested)
+    category_data = CONFIG_SCHEMA[selected_category]
+
+    # Check if this category has nested subcategories or direct keys
+    has_subcategories = any(
+        isinstance(v, dict) and not any(k in v for k in ["type", "desc"])
+        for v in category_data.values()
+    )
+
+    if has_subcategories:
+        # Has subcategories
+        subcategories = sorted(
+            [
+                k
+                for k, v in category_data.items()
+                if isinstance(v, dict) and not any(x in v for x in ["type", "desc"])
+            ]
+        )
+
+        print(f"\nSelect {selected_category} subcategory:\n")
+        for i, subcat in enumerate(subcategories, 1):
+            print(f"{i}. {subcat}")
+        print("B - Back")
+        print()
+
+        subcat_choice = input("Select subcategory (number or B): ").strip().upper()
+        if subcat_choice == "B":
+            return
+
+        try:
+            subcat_idx = int(subcat_choice) - 1
+            if subcat_idx < 0 or subcat_idx >= len(subcategories):
+                print("Invalid choice")
+                input("\nPress Enter to continue...")
+                return
+            selected_subcategory = subcategories[subcat_idx]
+            keys_data = category_data[selected_subcategory]
+            key_prefix = f"{selected_category}.{selected_subcategory}"
+        except ValueError:
+            print("Invalid input")
+            input("\nPress Enter to continue...")
+            return
+    else:
+        # Direct keys in category
+        keys_data = category_data
+        key_prefix = selected_category
+
+    # Step 3: Select key
+    available_keys = sorted(
+        [k for k, v in keys_data.items() if isinstance(v, dict) and "type" in v]
+    )
+
+    print("\nSelect configuration key:\n")
+    for i, key in enumerate(available_keys, 1):
+        key_info = keys_data[key]
+        desc = key_info.get("desc", "")
+        full_key = f"{key_prefix}.{key}"
+        existing = db.get(full_key)
+        status = " (set)" if existing is not None else " (not set)"
+        print(f"{i}. {key:<25} {desc}{status}")
+    print("B - Back")
+    print()
+
+    key_choice = input("Select key (number or B): ").strip().upper()
+    if key_choice == "B":
+        return
+
+    try:
+        key_idx = int(key_choice) - 1
+        if key_idx < 0 or key_idx >= len(available_keys):
+            print("Invalid choice")
+            input("\nPress Enter to continue...")
+            return
+        selected_key = available_keys[key_idx]
+        key_info = keys_data[selected_key]
+    except ValueError:
+        print("Invalid input")
+        input("\nPress Enter to continue...")
+        return
+
+    # Step 4: Enter value
+    full_key = f"{key_prefix}.{selected_key}"
+    existing = db.get(full_key)
+
+    print(f"\nConfiguring: {full_key}")
+    print(f"Description: {key_info.get('desc', 'No description')}")
+    if existing is not None:
+        if key_info.get("sensitive"):
+            print("Current value: ********")
+        else:
+            print(f"Current value: {existing}")
+    print()
+
+    is_sensitive = key_info.get("sensitive", False)
+    value_type = key_info.get("type", "str")
+
+    # Get value based on type
+    if value_type == "bool":
+        print("Select value:")
+        print("1. True")
+        print("2. False")
+        print()
+        bool_choice = input("Select (1 or 2): ").strip()
+        if bool_choice == "1":
+            value = True
+        elif bool_choice == "2":
+            value = False
+        else:
+            print("Invalid choice")
+            input("\nPress Enter to continue...")
+            return
+    else:
+        if is_sensitive:
+            value = getpass.getpass("Enter value: ")
+        else:
+            value = input("Enter value: ")
+
+        if not value:
+            print("Value cannot be empty")
             input("\nPress Enter to continue...")
             return
 
-    is_sensitive = any(
-        sensitive in key.lower() for sensitive in ["password", "token", "secret", "key"]
-    )
-
-    if is_sensitive:
-        value = getpass.getpass("Enter value: ")
-    else:
-        value = input("Enter value: ")
-
-    if not value:
-        print("Value cannot be empty")
-        input("\nPress Enter to continue...")
-        return
-
-    description = input("Enter description (optional): ").strip()
-
-    # Type inference
-    if value.lower() in ["true", "false"]:
-        value = value.lower() == "true"
-    elif value.isdigit():
-        value = int(value)
-    elif value.replace(".", "", 1).replace("-", "", 1).isdigit():
+        # Convert to appropriate type
         try:
-            value = float(value)
+            if value_type == "int":
+                value = int(value)
+            elif value_type == "float":
+                value = float(value)
+            # else keep as string
         except ValueError:
-            pass  # keep as string
+            print(f"Invalid value for type {value_type}")
+            input("\nPress Enter to continue...")
+            return
 
-    db.set(key, value, description)
-    print(f"\n✓ Added {key} = {value}")
+    # Save the value
+    db.set(full_key, value, key_info.get("desc", ""))
+    print(f"\n✓ Set {full_key} = {value if not is_sensitive else '********'}")
     input("\nPress Enter to continue...")
 
 
