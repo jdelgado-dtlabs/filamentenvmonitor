@@ -403,16 +403,28 @@ CLI Interface ← shared_state.get_sensor_data()
 
 ## Configuration Best Practices
 
-### Interactive Configuration Tool
-Use the config tool for all configuration management:
+### User Configuration Management
+**For end users**, use `setup.sh` for all configuration:
 ```bash
-# Interactive menu-based editor
-python scripts/config_tool.py --interactive
+# Interactive configuration management
+sudo ./install/setup.sh
 
-# Command-line operations
+# Provides menu for:
+# 1. Full reconfiguration (encryption key, Vault, database, sensor)
+# 2. Modify specific settings (launches config_tool.py)
+# 3. Exit
+```
+
+### Programmatic Configuration (Developers/Automation)
+**For developers and automation**, use `config_tool.py`:
+```bash
+# Read-only operations
 python scripts/config_tool.py --list                    # View all
 python scripts/config_tool.py --get database.type      # Get value
+
+# Write operations (for automation/scripts)
 python scripts/config_tool.py --set sensor.type BME280 # Set value
+python scripts/config_tool.py --interactive             # Interactive mode
 ```
 
 ### Encryption Key Security
