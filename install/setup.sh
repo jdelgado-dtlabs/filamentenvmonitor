@@ -1,7 +1,7 @@
 #!/bin/bash
 # FilamentBox Configuration Setup Script
-# Interactively configures environment variables and creates/updates .env file
-# Supports all configuration categories from config.yaml
+# Supports encrypted configuration database (v2.0+) and legacy .env files (v1.x)
+# Automatically migrates from legacy configuration to encrypted database
 
 set -e
 
@@ -17,10 +17,193 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_ROOT="$(dirname "$SCRIPT_DIR")"
 ENV_FILE="$INSTALL_ROOT/.env"
+CONFIG_YAML="$INSTALL_ROOT/config.yaml"
+CONFIG_DB="$INSTALL_ROOT/filamentbox_config.db"
+MIGRATE_SCRIPT="$SCRIPT_DIR/migrate_config.py"
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}FilamentBox Configuration Setup${NC}"
 echo -e "${BLUE}========================================${NC}"
+echo ""
+
+# ========================================
+# Detect Configuration Mode and Handle Migration
+# ========================================
+
+# Check if encrypted database exists
+if [ -f "$CONFIG_DB" ]; then
+    echo -e "${GREEN}Encrypted configuration database detected.${NC}"
+    echo -e "${GREEN}Using config_tool.py for configuration management.${NC}"
+    echo ""
+    
+    # Check if encryption key is set
+    if [ -z "$FILAMENTBOX_CONFIG_KEY" ]; then
+        echo -e "${RED}ERROR: FILAMENTBOX_CONFIG_KEY environment variable not set!${NC}"
+        echo -e "${YELLOW}Please set your encryption key:${NC}"
+        echo -e "${YELLOW}  export FILAMENTBOX_CONFIG_KEY='your-encryption-key'${NC}"
+        echo ""
+        echo -e "${YELLOW}To make it permanent, add to your shell profile:${NC}"
+        echo -e "${YELLOW}  echo \"export FILAMENTBOX_CONFIG_KEY='your-encryption-key'\" >> ~/.bashrc${NC}"
+        echo ""
+        exit 1
+    fi
+    
+    # Use config_tool.py for interactive configuration
+    launch_config_tool
+fi
+
+# Check for legacy configuration files
+LEGACY_ENV_EXISTS=false
+LEGACY_YAML_EXISTS=false
+
+if [ -f "$ENV_FILE" ]; then
+    LEGACY_ENV_EXISTS=true
+fi
+
+if [ -f "$CONFIG_YAML" ]; then
+    LEGACY_YAML_EXISTS=true
+fi
+
+# Offer migration if legacy files exist
+if [ "$LEGACY_ENV_EXISTS" = true ] || [ "$LEGACY_YAML_EXISTS" = true ]; then
+    echo -e "${YELLOW}========================================${NC}"
+    echo -e "${YELLOW}Legacy Configuration Detected${NC}"
+    echo -e "${YELLOW}========================================${NC}"
+    echo ""
+    
+    if [ "$LEGACY_ENV_EXISTS" = true ]; then
+        echo -e "${CYAN}Found: .env file${NC}"
+    fi
+    if [ "$LEGACY_YAML_EXISTS" = true ]; then
+        echo -e "${CYAN}Found: config.yaml file${NC}"
+    fi
+    
+    echo ""
+    echo -e "${GREEN}FilamentBox v2.0 uses encrypted configuration database for secure credential storage.${NC}"
+    echo ""
+    echo -e "${YELLOW}Benefits:${NC}"
+    echo "  - Encrypted storage of passwords and sensitive data"
+    echo "  - Centralized configuration management"
+    echo "  - Better security than plain text files"
+    echo "  - Interactive configuration tool"
+    echo ""
+    
+    if ask_yes_no "Migrate to encrypted configuration database?"; then
+        echo ""
+        echo -e "${BLUE}========================================${NC}"
+        echo -e "${BLUE}Encryption Key Setup${NC}"
+        echo -e "${BLUE}========================================${NC}"
+        echo ""
+        
+        # Prompt for encryption key
+        prompt_encryption_key
+        
+        # Export the key for migration script
+        export FILAMENTBOX_CONFIG_KEY="$ENCRYPTION_KEY"
+        
+        # Ensure pysqlcipher3 is installed
+        ensure_pysqlcipher3
+        
+        echo -e "${CYAN}Running migration...${NC}"
+        echo ""
+        
+        # Run migration script
+        python "$MIGRATE_SCRIPT" --yaml "$CONFIG_YAML" --db "$CONFIG_DB" --key "$ENCRYPTION_KEY"
+        
+        if [ $? -eq 0 ]; then
+            echo ""
+            echo -e "${GREEN}========================================${NC}"
+            echo -e "${GREEN}Migration Successful!${NC}"
+            echo -e "${GREEN}========================================${NC}"
+            echo ""
+            echo -e "${GREEN}Your configuration has been migrated to encrypted database:${NC}"
+            echo -e "${GREEN}  $CONFIG_DB${NC}"
+            echo ""
+            echo -e "${YELLOW}IMPORTANT - Save Your Encryption Key:${NC}"
+            echo ""
+            echo -e "${YELLOW}Add this to your shell profile (~/.bashrc or ~/.bash_profile):${NC}"
+            echo -e "${CYAN}  export FILAMENTBOX_CONFIG_KEY='$ENCRYPTION_KEY'${NC}"
+            echo ""
+            echo -e "${YELLOW}Or add to systemd service file if running as service.${NC}"
+            echo ""
+            
+            # Ask about backing up old files
+            echo -e "${YELLOW}Legacy Configuration Files:${NC}"
+            if ask_yes_no "Create backup and remove legacy .env and config.yaml files?" "N"; then
+                BACKUP_DIR="$INSTALL_ROOT/config_backup_$(date +%Y%m%d_%H%M%S)"
+                mkdir -p "$BACKUP_DIR"
+                
+                if [ "$LEGACY_ENV_EXISTS" = true ]; then
+                    mv "$ENV_FILE" "$BACKUP_DIR/"
+                    echo -e "${GREEN}  Moved .env to $BACKUP_DIR/${NC}"
+                fi
+                
+                if [ "$LEGACY_YAML_EXISTS" = true ]; then
+                    mv "$CONFIG_YAML" "$BACKUP_DIR/"
+                    echo -e "${GREEN}  Moved config.yaml to $BACKUP_DIR/${NC}"
+                fi
+                
+                echo ""
+                echo -e "${GREEN}Legacy files backed up to: $BACKUP_DIR${NC}"
+            else
+                echo -e "${YELLOW}Legacy files retained. You can remove them manually when ready.${NC}"
+            fi
+            
+            echo ""
+            echo -e "${CYAN}You can now manage your configuration using:${NC}"
+            echo -e "${CYAN}  python scripts/config_tool.py --interactive${NC}"
+            echo ""
+            exit 0
+        else
+            echo ""
+            echo -e "${RED}Migration failed. Please check the error messages above.${NC}"
+            echo -e "${YELLOW}Your original configuration files were not modified.${NC}"
+            exit 1
+        fi
+    else
+        echo ""
+        echo -e "${YELLOW}Continuing with legacy configuration mode (.env file).${NC}"
+        echo -e "${YELLOW}You can migrate to encrypted database later by running this script again.${NC}"
+        echo ""
+    fi
+else
+    # No existing configuration - start fresh with encrypted database
+    echo -e "${GREEN}No existing configuration found.${NC}"
+    echo -e "${GREEN}Creating new encrypted configuration database.${NC}"
+    echo ""
+    
+    # Ensure pysqlcipher3 is installed
+    ensure_pysqlcipher3
+    
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}Encryption Key Setup${NC}"
+    echo -e "${BLUE}========================================${NC}"
+    
+    # Prompt for encryption key
+    prompt_encryption_key
+    
+    echo -e "${YELLOW}Add this to your shell profile (~/.bashrc or ~/.bash_profile):${NC}"
+    echo -e "${CYAN}  export FILAMENTBOX_CONFIG_KEY='$ENCRYPTION_KEY'${NC}"
+    echo ""
+    
+    # Use config_tool.py for interactive setup
+    launch_config_tool
+fi
+
+# ========================================
+# Legacy Mode - Continue with .env configuration
+# ========================================
+echo -e "${YELLOW}========================================${NC}"
+echo -e "${YELLOW}Legacy Configuration Mode (.env)${NC}"
+echo -e "${YELLOW}========================================${NC}"
+echo ""
+
+# ========================================
+# Legacy Mode - Continue with .env configuration
+# ========================================
+echo -e "${YELLOW}========================================${NC}"
+echo -e "${YELLOW}Legacy Configuration Mode (.env)${NC}"
+echo -e "${YELLOW}========================================${NC}"
 echo ""
 
 # Function to read existing .env value
@@ -79,7 +262,7 @@ category_exists_in_env() {
     esac
 }
 
-# Check if .env already exists
+# Check if .env already exists (in legacy mode)
 ENV_EXISTS=false
 if [ -f "$ENV_FILE" ]; then
     ENV_EXISTS=true
@@ -130,6 +313,79 @@ ask_yes_no() {
         read -p "$prompt [y/N]: " response
         [[ "$response" =~ ^[Yy]$ ]]
     fi
+}
+
+# Function to prompt for encryption key
+prompt_encryption_key() {
+    echo ""
+    echo -e "${YELLOW}You need to create a strong encryption key for your configuration database.${NC}"
+    echo -e "${YELLOW}This key will be used to encrypt/decrypt your configuration.${NC}"
+    echo ""
+    echo -e "${RED}IMPORTANT:${NC}"
+    echo -e "${RED}  - Choose a strong, unique key (32+ characters recommended)${NC}"
+    echo -e "${RED}  - Store this key securely - you'll need it to access your config${NC}"
+    echo -e "${RED}  - If you lose this key, you CANNOT recover your configuration${NC}"
+    echo ""
+    
+    while true; do
+        read -s -p "Enter encryption key: " ENCRYPTION_KEY
+        echo ""
+        
+        if [ -z "$ENCRYPTION_KEY" ]; then
+            echo -e "${RED}Encryption key cannot be empty. Please try again.${NC}"
+            echo ""
+            continue
+        fi
+        
+        if [ ${#ENCRYPTION_KEY} -lt 16 ]; then
+            echo -e "${YELLOW}Warning: Key is short (${#ENCRYPTION_KEY} chars). Recommend 32+ characters.${NC}"
+            if ! ask_yes_no "Use this key anyway?" "N"; then
+                echo ""
+                continue
+            fi
+        fi
+        
+        read -s -p "Confirm encryption key: " ENCRYPTION_KEY_CONFIRM
+        echo ""
+        
+        if [ "$ENCRYPTION_KEY" != "$ENCRYPTION_KEY_CONFIRM" ]; then
+            echo -e "${RED}Keys don't match. Please try again.${NC}"
+            echo ""
+            continue
+        fi
+        
+        break
+    done
+    
+    echo ""
+    echo -e "${GREEN}Encryption key set successfully.${NC}"
+    echo ""
+    
+    # Export the key for use by migration/config scripts
+    export FILAMENTBOX_CONFIG_KEY="$ENCRYPTION_KEY"
+}
+
+# Function to ensure pysqlcipher3 is installed
+ensure_pysqlcipher3() {
+    echo -e "${CYAN}Checking for pysqlcipher3...${NC}"
+    cd "$INSTALL_ROOT"
+    
+    if ! python -c "import pysqlcipher3" 2>/dev/null; then
+        echo -e "${YELLOW}pysqlcipher3 not found. Installing...${NC}"
+        pip install pysqlcipher3
+    else
+        echo -e "${GREEN}pysqlcipher3 already installed.${NC}"
+    fi
+    echo ""
+}
+
+# Function to launch interactive config tool
+launch_config_tool() {
+    echo -e "${CYAN}Starting interactive configuration tool...${NC}"
+    echo ""
+    cd "$INSTALL_ROOT"
+    python scripts/config_tool.py --interactive
+    exit 0
 }
 
 # Track which categories to configure
@@ -627,4 +883,17 @@ if [ "$ENV_EXISTS" = true ]; then
     echo ""
     echo -e "${BLUE}A backup of your previous .env was created.${NC}"
 fi
+echo ""
+echo -e "${CYAN}========================================${NC}"
+echo -e "${CYAN}Upgrade to Encrypted Configuration${NC}"
+echo -e "${CYAN}========================================${NC}"
+echo ""
+echo -e "${YELLOW}FilamentBox v2.0 supports encrypted configuration database for better security.${NC}"
+echo -e "${YELLOW}Run this script again to migrate from .env to encrypted database.${NC}"
+echo ""
+echo -e "${CYAN}Benefits of encrypted configuration:${NC}"
+echo "  - Passwords encrypted at rest (256-bit AES)"
+echo "  - Centralized configuration management"
+echo "  - Interactive configuration tool"
+echo "  - Better security than plain text files"
 echo ""
