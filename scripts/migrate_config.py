@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Migrate configuration from YAML to encrypted SQLCipher database.
+"""Migrate configuration from YAML/.env to encrypted SQLCipher database.
 
-This script converts config.yaml to an encrypted configuration database.
+This script converts config.yaml and .env to an encrypted configuration database.
 Run once during upgrade to v2.0.
 """
 
@@ -9,6 +9,7 @@ import argparse
 import logging
 import os
 import sys
+from typing import Any
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -17,16 +18,90 @@ from filamentbox.config import load_config
 from filamentbox.config_db import ConfigDB
 
 
+def load_env_file(env_path: str) -> dict[str, Any]:
+    """Load .env file and return as nested dictionary.
+
+    Args:
+        env_path: Path to .env file
+
+    Returns:
+        Nested dictionary with configuration values
+    """
+    from dotenv import dotenv_values
+
+    env_vars = dotenv_values(env_path)
+    config: dict[str, Any] = {}
+
+    # Convert flat env vars to nested structure
+    # Example: DATABASE_INFLUXDB_HOST -> database.influxdb.host
+    for key, value in env_vars.items():
+        if not value:
+            continue
+
+        # Split on underscore and convert to lowercase
+        parts = key.lower().split("_")
+
+        # Navigate/create nested structure
+        current = config
+        for part in parts[:-1]:
+            if part not in current:
+                current[part] = {}
+            current = current[part]
+
+        # Set the value, converting types
+        last_key = parts[-1]
+        if value.lower() == "true":
+            current[last_key] = True
+        elif value.lower() == "false":
+            current[last_key] = False
+        elif value.replace(".", "", 1).isdigit():
+            # Try to parse as number
+            try:
+                if "." in value:
+                    current[last_key] = float(value)
+                else:
+                    current[last_key] = int(value)
+            except ValueError:
+                current[last_key] = value
+        else:
+            current[last_key] = value
+
+    return config
+
+
+def merge_configs(base: dict, override: dict) -> dict:
+    """Recursively merge override into base.
+
+    Args:
+        base: Base configuration dictionary
+        override: Override configuration dictionary
+
+    Returns:
+        Merged configuration dictionary
+    """
+    result = base.copy()
+
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = merge_configs(result[key], value)
+        else:
+            result[key] = value
+
+    return result
+
+
 def migrate_yaml_to_db(
     yaml_path: str = "config.yaml",
-    db_path: str = None,
-    encryption_key: str = None,
+    env_path: str = ".env",
+    db_path: str | None = None,
+    encryption_key: str | None = None,
     force: bool = False,
 ) -> bool:
-    """Migrate YAML configuration to encrypted database.
+    """Migrate YAML and .env configuration to encrypted database.
 
     Args:
         yaml_path: Path to config.yaml file
+        env_path: Path to .env file
         db_path: Path to config.db (default: auto-detect)
         encryption_key: Encryption key (default: from environment)
         force: Force migration even if database exists
@@ -48,12 +123,36 @@ def migrate_yaml_to_db(
         return False
 
     # Load YAML configuration
-    try:
-        logging.info(f"Loading configuration from {yaml_path}")
-        config = load_config(yaml_path)
-        logging.info(f"Loaded {len(config)} top-level configuration sections")
-    except Exception as e:
-        logging.error(f"Failed to load YAML configuration: {e}")
+    config: dict[str, Any] = {}
+    if os.path.exists(yaml_path):
+        try:
+            logging.info(f"Loading configuration from {yaml_path}")
+            yaml_config = load_config(yaml_path)
+            config = merge_configs(config, yaml_config)
+            logging.info(f"Loaded {len(yaml_config)} top-level sections from YAML")
+        except Exception as e:
+            logging.error(f"Failed to load YAML configuration: {e}")
+            return False
+    else:
+        logging.warning(f"YAML file not found: {yaml_path}")
+
+    # Load .env configuration (overrides YAML)
+    if os.path.exists(env_path):
+        try:
+            logging.info(f"Loading configuration from {env_path}")
+            env_config = load_env_file(env_path)
+            config = merge_configs(config, env_config)
+            logging.info(
+                f"Loaded {sum(len(v) if isinstance(v, dict) else 1 for v in env_config.values())} values from .env"
+            )
+        except Exception as e:
+            logging.error(f"Failed to load .env configuration: {e}")
+            return False
+    else:
+        logging.warning(f".env file not found: {env_path}")
+
+    if not config:
+        logging.error("No configuration loaded from YAML or .env files")
         return False
 
     # Initialize encrypted database
@@ -106,11 +205,18 @@ def migrate_yaml_to_db(
 
 def main():
     """Main entry point for migration script."""
-    parser = argparse.ArgumentParser(description="Migrate YAML configuration to encrypted database")
+    parser = argparse.ArgumentParser(
+        description="Migrate YAML and .env configuration to encrypted database"
+    )
     parser.add_argument(
         "--yaml",
         default="config.yaml",
         help="Path to config.yaml file (default: config.yaml)",
+    )
+    parser.add_argument(
+        "--env",
+        default=".env",
+        help="Path to .env file (default: .env)",
     )
     parser.add_argument("--db", default=None, help="Path to config.db file (default: auto-detect)")
     parser.add_argument(
@@ -132,6 +238,7 @@ def main():
 
     success = migrate_yaml_to_db(
         yaml_path=args.yaml,
+        env_path=args.env,
         db_path=args.db,
         encryption_key=args.key,
         force=args.force,

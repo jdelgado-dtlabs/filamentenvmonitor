@@ -18,6 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_ROOT="$(dirname "$SCRIPT_DIR")"
 CONFIG_DB="$INSTALL_ROOT/filamentbox_config.db"
 CONFIG_YAML="$INSTALL_ROOT/config.yaml"
+ENV_FILE="$INSTALL_ROOT/.env"
 
 echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}FilamentBox Configuration Setup${NC}"
@@ -58,12 +59,29 @@ if [ -f "$CONFIG_DB" ]; then
 fi
 
 # Check for legacy configuration files and auto-migrate
+LEGACY_FILES_EXIST=false
+LEGACY_FILES_LIST=""
+
 if [ -f "$CONFIG_YAML" ]; then
+    LEGACY_FILES_EXIST=true
+    LEGACY_FILES_LIST="config.yaml"
+fi
+
+if [ -f "$ENV_FILE" ]; then
+    LEGACY_FILES_EXIST=true
+    if [ -n "$LEGACY_FILES_LIST" ]; then
+        LEGACY_FILES_LIST="$LEGACY_FILES_LIST and .env"
+    else
+        LEGACY_FILES_LIST=".env"
+    fi
+fi
+
+if [ "$LEGACY_FILES_EXIST" = true ]; then
     echo -e "${YELLOW}========================================${NC}"
     echo -e "${YELLOW}Legacy Configuration Detected${NC}"
     echo -e "${YELLOW}========================================${NC}"
     echo ""
-    echo -e "${CYAN}Found: config.yaml${NC}"
+    echo -e "${CYAN}Found: $LEGACY_FILES_LIST${NC}"
     echo ""
     echo -e "${GREEN}FilamentBox v2.0 requires encrypted configuration database.${NC}"
     echo -e "${GREEN}Your configuration will be automatically migrated.${NC}"
@@ -85,12 +103,12 @@ if [ -f "$CONFIG_YAML" ]; then
     # Ensure pysqlcipher3 is installed
     ensure_pysqlcipher3
     
-    echo -e "${CYAN}Running migration from config.yaml...${NC}"
+    echo -e "${CYAN}Running migration from legacy configuration files...${NC}"
     echo ""
     
     # Run migration script
     cd "$INSTALL_ROOT"
-    python scripts/migrate_config.py --yaml "$CONFIG_YAML" --db "$CONFIG_DB" --key "$ENCRYPTION_KEY"
+    python scripts/migrate_config.py --yaml "$CONFIG_YAML" --env "$ENV_FILE" --db "$CONFIG_DB" --key "$ENCRYPTION_KEY"
     
     if [ $? -eq 0 ]; then
         echo ""
@@ -102,14 +120,23 @@ if [ -f "$CONFIG_YAML" ]; then
         echo -e "${GREEN}  $CONFIG_DB${NC}"
         echo ""
         
-        # Backup and remove legacy config.yaml
+        # Backup and remove legacy files
         BACKUP_DIR="$INSTALL_ROOT/config_backup_$(date +%Y%m%d_%H%M%S)"
         mkdir -p "$BACKUP_DIR"
-        mv "$CONFIG_YAML" "$BACKUP_DIR/"
-        echo -e "${GREEN}Legacy config.yaml backed up to:${NC}"
-        echo -e "${GREEN}  $BACKUP_DIR/config.yaml${NC}"
-        echo ""
         
+        if [ -f "$CONFIG_YAML" ]; then
+            mv "$CONFIG_YAML" "$BACKUP_DIR/"
+            echo -e "${GREEN}Legacy config.yaml backed up to:${NC}"
+            echo -e "${GREEN}  $BACKUP_DIR/config.yaml${NC}"
+        fi
+        
+        if [ -f "$ENV_FILE" ]; then
+            mv "$ENV_FILE" "$BACKUP_DIR/"
+            echo -e "${GREEN}Legacy .env backed up to:${NC}"
+            echo -e "${GREEN}  $BACKUP_DIR/.env${NC}"
+        fi
+        
+        echo ""
         echo -e "${YELLOW}IMPORTANT - Save Your Encryption Key:${NC}"
         echo ""
         echo -e "${YELLOW}Add this to your shell profile (~/.bashrc or ~/.bash_profile):${NC}"
@@ -128,11 +155,11 @@ if [ -f "$CONFIG_YAML" ]; then
         echo -e "${RED}========================================${NC}"
         echo ""
         echo -e "${RED}Migration failed. Please check the error messages above.${NC}"
-        echo -e "${YELLOW}Your original config.yaml was not modified.${NC}"
+        echo -e "${YELLOW}Your original configuration files were not modified.${NC}"
         echo ""
         echo -e "${YELLOW}You can try running the migration manually:${NC}"
         echo -e "${CYAN}  export FILAMENTBOX_CONFIG_KEY='$ENCRYPTION_KEY'${NC}"
-        echo -e "${CYAN}  python scripts/migrate_config.py --yaml config.yaml --db filamentbox_config.db --key '$ENCRYPTION_KEY'${NC}"
+        echo -e "${CYAN}  python scripts/migrate_config.py --yaml config.yaml --env .env --db filamentbox_config.db --key '$ENCRYPTION_KEY'${NC}"
         echo ""
         exit 1
     fi
