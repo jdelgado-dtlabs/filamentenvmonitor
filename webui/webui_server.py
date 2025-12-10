@@ -22,7 +22,8 @@ from filamentbox.shared_state import (
 
 # Get the directory where this script is located
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-WEBUI_DIR = os.path.join(BASE_DIR, "webui")
+# The webui files are in the same directory as this script
+WEBUI_DIR = BASE_DIR
 
 app = Flask(__name__, static_folder=WEBUI_DIR, static_url_path="")
 CORS(app)
