@@ -11,7 +11,9 @@ requests==2.32.5
 python-dotenv==1.0.0
 
 # Encrypted configuration dependencies (v2.0+)
-pysqlcipher3==1.2.0
+# Use sqlcipher3-wheels for Python 3.13+ compatibility (pre-compiled wheels)
+# pysqlcipher3 not compatible with Python 3.13 C API changes
+sqlcipher3-wheels==0.5.6
 
 # Optional: HashiCorp Vault integration
 # Uncomment to enable Vault support for encryption key storage
