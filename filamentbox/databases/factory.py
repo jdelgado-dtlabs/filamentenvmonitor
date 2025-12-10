@@ -12,7 +12,8 @@ def create_database_adapter(db_type: str, config: dict[str, Any]) -> TimeSeriesD
     """Create and return the appropriate database adapter.
 
     Args:
-        db_type: Type of database ('influxdb', 'prometheus', 'timescaledb', 'victoriametrics', or 'none')
+        db_type: Type of database ('influxdb', 'influxdb2', 'influxdb3', 'prometheus',
+                                    'timescaledb', 'victoriametrics', or 'none')
         config: Database-specific configuration dictionary
 
     Returns:
@@ -33,6 +34,16 @@ def create_database_adapter(db_type: str, config: dict[str, Any]) -> TimeSeriesD
         from .influxdb_adapter import InfluxDBAdapter
 
         return InfluxDBAdapter(config)
+
+    if db_type == "influxdb2":
+        from .influxdb2_adapter import InfluxDB2Adapter
+
+        return InfluxDB2Adapter(config)
+
+    if db_type == "influxdb3":
+        from .influxdb3_adapter import InfluxDB3Adapter
+
+        return InfluxDB3Adapter(config)
 
     if db_type == "prometheus":
         from .prometheus_adapter import PrometheusAdapter

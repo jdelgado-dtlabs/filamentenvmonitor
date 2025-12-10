@@ -29,7 +29,7 @@ data_collection:
 # Supported database types: influxdb, prometheus, timescaledb, victoriametrics, none
 # Set to 'none' to disable data storage (sensor reading only)
 database:
-  type: "influxdb"  # Options: influxdb, prometheus, timescaledb, victoriametrics, none
+  type: "influxdb"  # Options: influxdb, influxdb2, influxdb3, prometheus, timescaledb, victoriametrics, none
 
   # InfluxDB Configuration (v1.x)
   # Used when database.type = "influxdb"
@@ -41,6 +41,23 @@ database:
     database: "influx"     # Name of the InfluxDB database to write into
     ssl: false
     verify_ssl: true
+
+  # InfluxDB 2.x Configuration
+  # Used when database.type = "influxdb2"
+  influxdb2:
+    url: "http://influxdb2:8086"  # Full URL including protocol and port
+    token: "CHANGE_ME"  # MUST be set via INFLUXDB2_TOKEN env var in production
+    org: "myorg"        # Organization name
+    bucket: "filamentbox"  # Bucket name (replaces database in v1.x)
+    verify_ssl: true
+
+  # InfluxDB 3.x Configuration (Cloud/Serverless)
+  # Used when database.type = "influxdb3"
+  influxdb3:
+    host: "us-east-1-1.aws.cloud2.influxdata.com"  # InfluxDB Cloud host
+    token: "CHANGE_ME"  # MUST be set via INFLUXDB3_TOKEN env var in production
+    database: "filamentbox"  # Database name
+    org: ""  # Organization ID (optional for InfluxDB Cloud)
 
   # Prometheus Pushgateway Configuration
   # Used when database.type = "prometheus"

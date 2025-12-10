@@ -43,7 +43,8 @@ def get_database_config(db_type: str) -> dict[str, Any]:
     """Get database configuration for the specified database type.
 
     Args:
-        db_type: Database type (influxdb, prometheus, timescaledb, victoriametrics, none)
+        db_type: Database type (influxdb, influxdb2, influxdb3, prometheus,
+                                timescaledb, victoriametrics, none)
 
     Returns:
         Dictionary with database-specific configuration parameters.
@@ -57,6 +58,21 @@ def get_database_config(db_type: str) -> dict[str, Any]:
             "database": get("database.influxdb.database"),
             "ssl": get("database.influxdb.ssl"),
             "verify_ssl": get("database.influxdb.verify_ssl"),
+        }
+    elif db_type == "influxdb2":
+        return {
+            "url": get("database.influxdb2.url"),
+            "token": get("database.influxdb2.token"),
+            "org": get("database.influxdb2.org"),
+            "bucket": get("database.influxdb2.bucket"),
+            "verify_ssl": get("database.influxdb2.verify_ssl"),
+        }
+    elif db_type == "influxdb3":
+        return {
+            "host": get("database.influxdb3.host"),
+            "token": get("database.influxdb3.token"),
+            "database": get("database.influxdb3.database"),
+            "org": get("database.influxdb3.org"),
         }
     elif db_type == "prometheus":
         return {
