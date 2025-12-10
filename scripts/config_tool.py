@@ -1095,8 +1095,77 @@ def edit_tags_menu(db: ConfigDB, base_key: str = "data_collection.tags"):
 def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
     """Edit a single configuration value."""
     # Special handling for tags
-    if key == "data_collection.tags":
-        edit_tags_menu(db, key)
+    if key == "data_collection.tags" or key == "database.influxdb.tags":
+        # For dict-based tags, use direct JSON editing
+        import json
+
+        while True:
+            current_value = db.get(key)
+
+            print_header(f"Edit: {key}")
+            if description:
+                print(f"Description: {description}\n")
+
+            print("This field stores tags as a JSON object.")
+            print('Example: {"location": "garage", "device": "pi1", "environment": "production"}\n')
+
+            if current_value:
+                print("Current value:")
+                if isinstance(current_value, dict):
+                    print(json.dumps(current_value, indent=2))
+                else:
+                    print(f"{current_value} (type: {type(current_value).__name__})")
+            else:
+                print("Current value: (not set)")
+            print()
+
+            print("E - Edit as JSON")
+            print("C - Clear (set to empty dict)")
+            print("B - Back")
+            print("Q - Quit")
+            print()
+
+            choice = input("Select option (E, C, B, or Q): ").strip().upper()
+
+            if choice == "Q":
+                print("\nGoodbye!")
+                sys.exit(0)
+            elif choice == "B":
+                return
+            elif choice == "C":
+                db.set(key, {}, description)
+                print(f"\n✓ Cleared {key} (set to empty dict)")
+                input("\nPress Enter to continue...")
+                return
+            elif choice == "E":
+                print("\nEnter JSON object (or press Enter to cancel):")
+                if current_value and isinstance(current_value, dict):
+                    print(f"Current: {json.dumps(current_value)}")
+
+                new_value = input("> ").strip()
+                if not new_value:
+                    continue
+
+                try:
+                    parsed_value = json.loads(new_value)
+                    if not isinstance(parsed_value, dict):
+                        print(
+                            "\n✗ Error: Value must be a JSON object (dict), not a list or primitive"
+                        )
+                        input("\nPress Enter to continue...")
+                        continue
+
+                    db.set(key, parsed_value, description)
+                    print(f"\n✓ Updated {key}")
+                    print(json.dumps(parsed_value, indent=2))
+                    input("\nPress Enter to continue...")
+                    return
+                except json.JSONDecodeError as e:
+                    print(f"\n✗ Invalid JSON: {e}")
+                    input("\nPress Enter to continue...")
+            else:
+                print("Invalid option. Please select E, C, B, or Q.")
+                input("\nPress Enter to continue...")
         return
 
     # Check if this key has predefined menu options
