@@ -1,7 +1,6 @@
 """Configuration loader for FilamentBox.
 
-Provides YAML + environment variable merged configuration with helper access
-via `get`. Environment variables override sensitive and dynamic values.
+Provides encrypted database configuration (preferred) with fallback to YAML + environment variables.
 """
 
 import json
@@ -11,6 +10,16 @@ from typing import Any, Optional
 
 import yaml
 from dotenv import load_dotenv
+
+# Try to import encrypted config database
+try:
+    from .config_db import CONFIG_DB_PATH, ConfigDB
+
+    HAS_CONFIG_DB = True
+except ImportError:
+    HAS_CONFIG_DB = False
+    ConfigDB = None  # type: ignore[assignment,misc]
+    CONFIG_DB_PATH = None  # type: ignore[assignment]
 
 
 def _find_config_file() -> Optional[str]:
@@ -136,24 +145,75 @@ def load_config(config_path: Optional[str] = None) -> dict[str, Any]:
 
 # Global config instance (loaded on first use, not at import)
 config: Optional[dict[str, Any]] = None
+config_db: Optional[Any] = None  # ConfigDB instance if available
+using_encrypted_db: bool = False
+
+
+def _try_load_encrypted_config() -> bool:
+    """Try to load configuration from encrypted database.
+
+    Returns:
+        True if encrypted database was loaded successfully, False otherwise
+    """
+    global config_db, using_encrypted_db
+
+    if not HAS_CONFIG_DB:
+        logging.debug("Encrypted config database not available (pysqlcipher3 not installed)")
+        return False
+
+    if not os.path.exists(CONFIG_DB_PATH):
+        logging.debug(f"Config database not found at {CONFIG_DB_PATH}")
+        return False
+
+    try:
+        config_db = ConfigDB()
+        # Test if we can read from the database
+        _ = config_db.get_all()
+        using_encrypted_db = True
+        logging.info(f"Using encrypted configuration database: {CONFIG_DB_PATH}")
+        return True
+    except Exception as e:
+        logging.warning(f"Failed to load encrypted config database: {e}")
+        logging.warning("Falling back to YAML configuration")
+        config_db = None
+        return False
 
 
 def _ensure_config_loaded():
-    """Load config if not already loaded."""
-    global config
-    if config is None:
-        config = load_config()
+    """Load config if not already loaded (tries encrypted DB first, then YAML)."""
+    global config, using_encrypted_db
+
+    if config is not None or config_db is not None:
+        return  # Already loaded
+
+    # Try encrypted database first
+    if _try_load_encrypted_config():
+        # Encrypted database is loaded, config_db is set
+        return
+
+    # Fall back to YAML configuration
+    using_encrypted_db = False
+    config = load_config()
+    logging.info("Using YAML configuration (consider migrating to encrypted database)")
 
 
 def get(key_path: str, default: Any = None) -> Any:
     """Return config value at dot-separated path or `default` if missing.
 
+    Tries encrypted database first, falls back to YAML configuration.
+
     Examples:
-            get('influxdb.host') -> '192.168.99.2'
+            get('database.influxdb.host') -> '192.168.99.2'
             get('queue.max_size') -> 10000
             get('nonexistent', 'fallback') -> 'fallback'
     """
     _ensure_config_loaded()
+
+    # Use encrypted database if available
+    if using_encrypted_db and config_db is not None:
+        return config_db.get(key_path, default)
+
+    # Fall back to YAML
     keys = key_path.split(".")
     val: Any = config
     for key in keys:
