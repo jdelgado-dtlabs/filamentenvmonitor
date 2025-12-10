@@ -57,7 +57,7 @@ if [ -f "$CONFIG_DB" ]; then
     launch_config_tool
 fi
 
-# Check for legacy configuration files (warn user to migrate manually if found)
+# Check for legacy configuration files and auto-migrate
 if [ -f "$CONFIG_YAML" ]; then
     echo -e "${YELLOW}========================================${NC}"
     echo -e "${YELLOW}Legacy Configuration Detected${NC}"
@@ -65,16 +65,14 @@ if [ -f "$CONFIG_YAML" ]; then
     echo ""
     echo -e "${CYAN}Found: config.yaml${NC}"
     echo ""
-    echo -e "${RED}FilamentBox v2.0 requires encrypted configuration database.${NC}"
+    echo -e "${GREEN}FilamentBox v2.0 requires encrypted configuration database.${NC}"
+    echo -e "${GREEN}Your configuration will be automatically migrated.${NC}"
     echo ""
-    echo -e "${YELLOW}To migrate from config.yaml:${NC}"
-    echo -e "${CYAN}  1. Set an encryption key (see below)${NC}"
-    echo -e "${CYAN}  2. Run: python scripts/migrate_config.py${NC}"
-    echo ""
-    echo -e "${YELLOW}The migration script will:${NC}"
-    echo "  - Create encrypted configuration database"
-    echo "  - Import all settings from config.yaml"
-    echo "  - Preserve your existing configuration"
+    echo -e "${YELLOW}Benefits of encrypted configuration:${NC}"
+    echo "  - Passwords encrypted at rest (256-bit AES)"
+    echo "  - Centralized configuration management"
+    echo "  - Interactive configuration tool"
+    echo "  - Better security than plain text files"
     echo ""
     
     # Prompt for encryption key setup
@@ -84,13 +82,60 @@ if [ -f "$CONFIG_YAML" ]; then
     
     prompt_encryption_key
     
-    echo -e "${YELLOW}Add this to your shell profile (~/.bashrc or ~/.bash_profile):${NC}"
-    echo -e "${CYAN}  export FILAMENTBOX_CONFIG_KEY='$ENCRYPTION_KEY'${NC}"
+    # Ensure pysqlcipher3 is installed
+    ensure_pysqlcipher3
+    
+    echo -e "${CYAN}Running migration from config.yaml...${NC}"
     echo ""
-    echo -e "${YELLOW}Then run the migration:${NC}"
-    echo -e "${CYAN}  python scripts/migrate_config.py --yaml config.yaml --db filamentbox_config.db --key '$ENCRYPTION_KEY'${NC}"
-    echo ""
-    exit 0
+    
+    # Run migration script
+    cd "$INSTALL_ROOT"
+    python scripts/migrate_config.py --yaml "$CONFIG_YAML" --db "$CONFIG_DB" --key "$ENCRYPTION_KEY"
+    
+    if [ $? -eq 0 ]; then
+        echo ""
+        echo -e "${GREEN}========================================${NC}"
+        echo -e "${GREEN}Migration Successful!${NC}"
+        echo -e "${GREEN}========================================${NC}"
+        echo ""
+        echo -e "${GREEN}Configuration migrated to encrypted database:${NC}"
+        echo -e "${GREEN}  $CONFIG_DB${NC}"
+        echo ""
+        
+        # Backup and remove legacy config.yaml
+        BACKUP_DIR="$INSTALL_ROOT/config_backup_$(date +%Y%m%d_%H%M%S)"
+        mkdir -p "$BACKUP_DIR"
+        mv "$CONFIG_YAML" "$BACKUP_DIR/"
+        echo -e "${GREEN}Legacy config.yaml backed up to:${NC}"
+        echo -e "${GREEN}  $BACKUP_DIR/config.yaml${NC}"
+        echo ""
+        
+        echo -e "${YELLOW}IMPORTANT - Save Your Encryption Key:${NC}"
+        echo ""
+        echo -e "${YELLOW}Add this to your shell profile (~/.bashrc or ~/.bash_profile):${NC}"
+        echo -e "${CYAN}  export FILAMENTBOX_CONFIG_KEY='$ENCRYPTION_KEY'${NC}"
+        echo ""
+        echo -e "${YELLOW}Or add to systemd service file if running as a service.${NC}"
+        echo ""
+        echo -e "${CYAN}You can now manage your configuration using:${NC}"
+        echo -e "${CYAN}  python scripts/config_tool.py --interactive${NC}"
+        echo ""
+        exit 0
+    else
+        echo ""
+        echo -e "${RED}========================================${NC}"
+        echo -e "${RED}Migration Failed${NC}"
+        echo -e "${RED}========================================${NC}"
+        echo ""
+        echo -e "${RED}Migration failed. Please check the error messages above.${NC}"
+        echo -e "${YELLOW}Your original config.yaml was not modified.${NC}"
+        echo ""
+        echo -e "${YELLOW}You can try running the migration manually:${NC}"
+        echo -e "${CYAN}  export FILAMENTBOX_CONFIG_KEY='$ENCRYPTION_KEY'${NC}"
+        echo -e "${CYAN}  python scripts/migrate_config.py --yaml config.yaml --db filamentbox_config.db --key '$ENCRYPTION_KEY'${NC}"
+        echo ""
+        exit 1
+    fi
 fi
 
 # No existing configuration - create new encrypted database
