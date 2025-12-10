@@ -75,6 +75,205 @@ CONFIG_SCHEMA = {
 }
 
 
+def get_all_valid_keys(schema: dict, prefix: str = "") -> set[str]:
+    """Recursively get all valid keys from schema."""
+    valid_keys = set()
+
+    for key, value in schema.items():
+        if prefix:
+            full_key = f"{prefix}.{key}"
+        else:
+            full_key = key
+
+        if isinstance(value, dict):
+            # Check if this is a leaf node (has 'type' key) or intermediate node
+            if "type" in value:
+                # Leaf node - this is a valid configuration key
+                valid_keys.add(full_key)
+            else:
+                # Intermediate node - recurse
+                valid_keys.update(get_all_valid_keys(value, full_key))
+
+    return valid_keys
+
+
+def find_similar_key(invalid_key: str, valid_keys: set[str]) -> str | None:
+    """Find the most similar valid key for an invalid key."""
+    # Try simple transformations first
+    parts = invalid_key.split(".")
+
+    # Common mistakes to check
+    transformations = [
+        invalid_key.lower(),
+        invalid_key.upper(),
+        invalid_key.replace("_", "."),
+        invalid_key.replace("-", "."),
+    ]
+
+    # Check if any transformation matches a valid key
+    for transform in transformations:
+        if transform in valid_keys:
+            return transform
+
+    # Check for partial matches (same ending)
+    if len(parts) >= 2:
+        suffix = ".".join(parts[-2:])
+        for valid_key in valid_keys:
+            if valid_key.endswith(suffix):
+                return valid_key
+
+    # Check for keys with similar structure
+    for valid_key in valid_keys:
+        valid_parts = valid_key.split(".")
+        if len(valid_parts) == len(parts):
+            # Check if last part matches
+            if valid_parts[-1] == parts[-1]:
+                return valid_key
+
+    return None
+
+
+def validate_and_fix_keys(db: ConfigDB, auto_fix: bool = False) -> dict[str, str]:
+    """Validate all keys in database against schema and optionally fix them.
+
+    Returns:
+        Dictionary mapping invalid keys to their suggested replacements
+    """
+    valid_keys = get_all_valid_keys(CONFIG_SCHEMA)
+    all_db_keys = [key for key, _ in db.list_keys("")]
+
+    invalid_keys = {}
+
+    for db_key in all_db_keys:
+        # Skip tags (they have flexible structure)
+        if ".tags." in db_key:
+            continue
+
+        if db_key not in valid_keys:
+            similar = find_similar_key(db_key, valid_keys)
+            invalid_keys[db_key] = similar
+
+    if auto_fix and invalid_keys:
+        print_header("Auto-fixing Invalid Keys")
+        for invalid_key, suggested_key in invalid_keys.items():
+            if suggested_key:
+                value = db.get(invalid_key)
+                print(f"Migrating: {invalid_key} → {suggested_key}")
+                db.set(suggested_key, value)
+                db.delete(invalid_key)
+                print(f"  ✓ Migrated value: {value}")
+            else:
+                print(f"⚠ No suggestion for: {invalid_key} (keeping as-is)")
+        print()
+
+    return invalid_keys
+
+
+def fix_invalid_keys_menu(db: ConfigDB):
+    """Interactive menu to fix invalid configuration keys."""
+    print_header("Fix Invalid Configuration Keys")
+
+    valid_keys = get_all_valid_keys(CONFIG_SCHEMA)
+    all_db_keys = [key for key, _ in db.list_keys("")]
+
+    invalid_keys = {}
+    for db_key in all_db_keys:
+        # Skip tags
+        if ".tags." in db_key:
+            continue
+        if db_key not in valid_keys:
+            similar = find_similar_key(db_key, valid_keys)
+            invalid_keys[db_key] = similar
+
+    if not invalid_keys:
+        print("✓ All configuration keys are valid!")
+        input("\nPress Enter to continue...")
+        return
+
+    print(f"Found {len(invalid_keys)} invalid key(s):\n")
+
+    for i, (invalid_key, suggested_key) in enumerate(invalid_keys.items(), 1):
+        value = db.get(invalid_key)
+        # Mask sensitive values
+        if any(s in invalid_key.lower() for s in ["password", "token", "secret", "key"]):
+            display_value = "********"
+        else:
+            display_value = value
+
+        print(f"{i}. Invalid: {invalid_key}")
+        print(f"   Value: {display_value}")
+        if suggested_key:
+            print(f"   Suggested: {suggested_key}")
+        else:
+            print("   Suggested: (no match found)")
+        print()
+
+    print("Options:")
+    print("A - Auto-fix all (migrate to suggested keys)")
+    print("M - Manual fix (choose for each key)")
+    print("D - Delete all invalid keys")
+    print("B - Back (keep invalid keys)")
+    print()
+
+    choice = input("Select option: ").strip().upper()
+
+    if choice == "A":
+        # Auto-fix all
+        migrated = 0
+        for invalid_key, suggested_key in invalid_keys.items():
+            if suggested_key:
+                value = db.get(invalid_key)
+                db.set(suggested_key, value)
+                db.delete(invalid_key)
+                print(f"✓ Migrated: {invalid_key} → {suggested_key}")
+                migrated += 1
+            else:
+                print(f"⚠ Skipped (no suggestion): {invalid_key}")
+
+        print(f"\n✓ Migrated {migrated} key(s)")
+        input("\nPress Enter to continue...")
+
+    elif choice == "M":
+        # Manual fix
+        for invalid_key, suggested_key in invalid_keys.items():
+            value = db.get(invalid_key)
+            print(f"\nInvalid key: {invalid_key}")
+            print(f"Value: {value}")
+
+            if suggested_key:
+                print(f"Suggested: {suggested_key}")
+                action = input("Action (M=migrate, D=delete, S=skip): ").strip().upper()
+            else:
+                print("No suggestion available")
+                action = input("Action (D=delete, S=skip): ").strip().upper()
+
+            if action == "M" and suggested_key:
+                db.set(suggested_key, value)
+                db.delete(invalid_key)
+                print(f"✓ Migrated to: {suggested_key}")
+            elif action == "D":
+                db.delete(invalid_key)
+                print(f"✓ Deleted: {invalid_key}")
+            else:
+                print(f"Skipped: {invalid_key}")
+
+        print("\n✓ Manual fix complete")
+        input("\nPress Enter to continue...")
+
+    elif choice == "D":
+        # Delete all
+        confirm = input(f"Delete all {len(invalid_keys)} invalid key(s)? (yes/no): ")
+        if confirm.lower() == "yes":
+            for invalid_key in invalid_keys.keys():
+                db.delete(invalid_key)
+            print(f"\n✓ Deleted {len(invalid_keys)} key(s)")
+        else:
+            print("\nCancelled")
+        input("\nPress Enter to continue...")
+
+    # else: choice == "B" or invalid, just return
+
+
 def print_header(text: str):
     """Print a formatted header."""
     print("\n" + "=" * 60)
@@ -191,6 +390,7 @@ def interactive_menu(db: ConfigDB):
         print("N - Add new configuration value")
         print("S - Search for a configuration key")
         print("V - View all configuration")
+        print("F - Fix invalid configuration keys")
         print("Q - Quit")
         print()
 
@@ -205,11 +405,13 @@ def interactive_menu(db: ConfigDB):
         elif choice == "V":
             list_config(db)
             input("\nPress Enter to continue...")
+        elif choice == "F":
+            fix_invalid_keys_menu(db)
         elif choice == "Q":
             print("\nGoodbye!")
             break
         else:
-            print("Invalid option. Please select B, N, S, V, or Q.")
+            print("Invalid option. Please select B, N, S, V, F, or Q.")
             input("\nPress Enter to continue...")
 
 
