@@ -51,7 +51,7 @@ generate_encryption_key() {
 # Function to check if Vault is available and configured
 check_vault_available() {
     # Check if hvac (Vault Python library) is installed
-    if ! python -c "import hvac" 2>/dev/null; then
+    if ! "$INSTALL_ROOT/filamentcontrol/bin/python" -c "import hvac" 2>/dev/null; then
         return 1
     fi
     
@@ -97,11 +97,11 @@ configure_vault_interactive() {
     echo ""
     
     # Check if hvac is installed
-    if ! python -c "import hvac" 2>/dev/null; then
+    if ! "$INSTALL_ROOT/filamentcontrol/bin/python" -c "import hvac" 2>/dev/null; then
         echo -e "${YELLOW}HashiCorp Vault Python library (hvac) not installed.${NC}"
         echo ""
         if ask_yes_no "Install hvac library now?" "Y"; then
-            pip install hvac
+            "$INSTALL_ROOT/filamentcontrol/bin/pip" install hvac
             echo ""
         else
             echo -e "${RED}Cannot use Vault without hvac library.${NC}"
@@ -331,9 +331,9 @@ ensure_pysqlcipher3() {
     echo -e "${CYAN}Checking for pysqlcipher3...${NC}"
     cd "$INSTALL_ROOT"
     
-    if ! python -c "import pysqlcipher3" 2>/dev/null; then
+    if ! "$INSTALL_ROOT/filamentcontrol/bin/python" -c "import pysqlcipher3" 2>/dev/null; then
         echo -e "${YELLOW}pysqlcipher3 not found. Installing...${NC}"
-        pip install pysqlcipher3
+        "$INSTALL_ROOT/filamentcontrol/bin/pip" install pysqlcipher3
     else
         echo -e "${GREEN}pysqlcipher3 already installed.${NC}"
     fi
