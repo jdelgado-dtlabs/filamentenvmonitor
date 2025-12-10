@@ -1,12 +1,12 @@
 # FilamentBox Core Module
 
-The core Python module for 3D printer filament storage environment monitoring with InfluxDB integration, multi-sensor support, and active environment control.
+The core Python module for 3D printer filament storage environment monitoring with multi-database support, multi-sensor hardware, and active environment control.
 
 ## Architecture
 
 The application follows a multi-threaded architecture with separate threads for:
 - Data collection from sensors
-- InfluxDB batch writing
+- Database batch writing (7 backend options)
 - Temperature control (heating)
 - Humidity control (exhaust fan)
 
@@ -18,9 +18,9 @@ All threads share state through a thread-safe state management system.
 filamentbox/
 ├── __init__.py              # Package initialization
 ├── main.py                  # Application entry point and orchestration
-├── config.py                # Configuration management (YAML + env)
-├── sensor.py                # Multi-sensor support (BME280, DHT22)
-├── influx_writer.py         # InfluxDB batch writer with retry logic
+├── config_db.py             # Encrypted SQLCipher configuration with Vault integration
+├── sensor.py                # Multi-sensor support (BME280, DHT22, DHT11)
+├── database_writer.py       # Multi-backend database writer (7 backends)
 ├── persistence.py           # SQLite persistence for failed batches
 ├── logging_config.py        # Dual-stream logging configuration
 ├── heating_control.py       # Temperature-based heating control
@@ -41,7 +41,7 @@ filamentbox/
 **Features**:
 - Configurable read intervals
 - Batch size and flush interval management
-- Numeric field validation for InfluxDB
+- Numeric field validation for database backends
 - Queue overflow handling (drop oldest)
 - Graceful shutdown with queue flush
 - Debug logging with batch preview
@@ -53,39 +53,63 @@ _stop_event = threading.Event()
 
 # Threads started:
 - Data collection thread
-- InfluxDB writer thread  
+- Database writer thread
 - Heating control thread (if enabled)
 - Humidity control thread (if enabled)
 ```
 
-### config.py
+### config_db.py
 
-**Purpose**: Centralized configuration management
+**Purpose**: Encrypted configuration management with enterprise integration
 
 **Features**:
-- Lazy loading via `_ensure_config_loaded()`
-- YAML file parsing (`config.yaml`)
-- Environment variable overrides (`.env` via python-dotenv)
-- Type validation for configuration values
-- JSON parsing for complex config (tags)
+- SQLCipher encrypted database (256-bit AES encryption)
+- Auto-generated cryptographically strong encryption keys
+- HashiCorp Vault integration (optional)
+- Type-safe value storage with automatic inference
+- Priority loading: env var > Vault > local file > default
 
-**Key Function**:
+**Key Class**:
 ```python
-def get(key: str, default: Any = None) -> Any:
-    """Get configuration value with dot notation."""
-    _ensure_config_loaded()
-    # Supports: get("influxdb.host")
+class ConfigDB:
+    def get(key: str, default: Any = None) -> Any:
+        """Get configuration value with dot notation."""
+    def set(key: str, value: Any) -> None:
+        """Set configuration value with type preservation."""
+    def delete(key: str) -> None:
+        """Delete configuration key."""
+    def list_all() -> dict:
+        """List all configuration."""
 ```
 
 **Configuration Sections**:
-- `influxdb`: Database connection settings
+- `database`: Backend type and connection settings (7 backends)
 - `data_collection`: Intervals, batch size, measurement name, tags
 - `queue`: Maximum queue size
 - `retry`: Backoff parameters, alert threshold
 - `persistence`: SQLite database path, max batches
-- `sensor`: Type (BME280/DHT22), GPIO pin, settings
+- `sensor`: Type (BME280/DHT22/DHT11), GPIO pin, settings
 - `heating_control`: Enable, GPIO pin, temperature thresholds
 - `humidity_control`: Enable, GPIO pin, humidity thresholds
+
+### database_writer.py
+
+**Purpose**: Multi-backend database abstraction
+
+**Supported Backends**:
+- **InfluxDB v1**: Legacy HTTP API
+- **InfluxDB v2**: Modern with organizations and buckets
+- **InfluxDB v3**: Latest with Apache Arrow
+- **Prometheus**: Push gateway integration
+- **TimescaleDB**: PostgreSQL-based time-series
+- **VictoriaMetrics**: High-performance metrics
+- **None**: Local-only mode (no remote database)
+
+**Key Features**:
+- Unified interface across all backends
+- Backend-specific optimizations
+- Automatic retry and batching
+- Connection pooling where supported
 
 ### sensor.py
 
@@ -379,33 +403,56 @@ CLI Interface ← shared_state.get_sensor_data()
 
 ## Configuration Best Practices
 
-### Environment Variables
-Use `.env` for sensitive data:
+### Interactive Configuration Tool
+Use the config tool for all configuration management:
 ```bash
-INFLUXDB_USERNAME=admin
-INFLUXDB_PASSWORD=secret
-INFLUXDB_HOST=192.168.1.10
+# Interactive menu-based editor
+python scripts/config_tool.py --interactive
+
+# Command-line operations
+python scripts/config_tool.py --list                    # View all
+python scripts/config_tool.py --get database.type      # Get value
+python scripts/config_tool.py --set sensor.type BME280 # Set value
 ```
 
-### YAML Configuration
-Use `config.yaml` for operational settings:
-```yaml
-data_collection:
-  read_interval: 60
-  batch_size: 10
-  flush_interval: 300
-```
-
-### Tags
-Use JSON for complex tag structures:
-```yaml
-data_collection:
-  tags: '{"location": "garage", "device": "pi-zero"}'
-```
-
-Or via environment:
+### Encryption Key Security
+Store encryption keys securely:
 ```bash
-DATA_COLLECTION_TAGS='{"location": "garage", "device": "pi-zero"}'
+# Key priority (highest to lowest):
+1. CONFIG_ENCRYPTION_KEY environment variable
+2. HashiCorp Vault (if configured)
+3. .config_key file (600 permissions)
+4. Default key (not recommended)
+```
+
+See [Encryption Key Security](../docs/ENCRYPTION_KEY_SECURITY.md) for details.
+
+### Database Backend Selection
+Choose appropriate backend for your deployment:
+```bash
+# For existing InfluxDB v1 installations
+python scripts/config_tool.py --set database.type influxdb_v1
+
+# For modern InfluxDB v2 with organizations
+python scripts/config_tool.py --set database.type influxdb_v2
+
+# For latest InfluxDB v3 cloud
+python scripts/config_tool.py --set database.type influxdb_v3
+
+# For Prometheus ecosystem
+python scripts/config_tool.py --set database.type prometheus
+
+# For local-only mode (no remote database)
+python scripts/config_tool.py --set database.type none
+```
+
+### Tags Configuration
+Use the interactive tag editor for key-value pairs:
+```bash
+python scripts/config_tool.py --interactive
+# Navigate to data_collection section
+# Select 'tags' key
+# Use special tag editor to add/edit/remove tags
 ```
 
 ## Extending the Module
@@ -419,11 +466,10 @@ elif sensor_type == "newsensor":
     _sensor = NewSensor()
 ```
 
-2. Add configuration:
-```yaml
-sensor:
-  type: "newsensor"
-  custom_param: value
+2. Add configuration using config tool:
+```bash
+python scripts/config_tool.py --set sensor.type newsensor
+python scripts/config_tool.py --set sensor.custom_param value
 ```
 
 3. Implement `read_sensor_data()` compatible interface
@@ -434,7 +480,34 @@ sensor:
 2. Follow pattern from `heating_control.py`
 3. Use `shared_state` for sensor data
 4. Start thread in `main.py`
-5. Add configuration section to `config.yaml`
+5. Add configuration section using config tool:
+```bash
+python scripts/config_tool.py --set cooling_control.enabled true
+python scripts/config_tool.py --set cooling_control.gpio_pin 21
+```
+
+### Adding a New Database Backend
+
+1. Update `database_writer.py`:
+```python
+elif db_type == "newdb":
+    from newdb_writer import NewDBWriter
+    _writer = NewDBWriter(config)
+```
+
+2. Implement unified writer interface:
+```python
+class NewDBWriter:
+    def write_batch(self, batch: List[Dict]) -> bool:
+        """Write batch to database, return success."""
+```
+
+3. Add configuration:
+```bash
+python scripts/config_tool.py --set database.type newdb
+python scripts/config_tool.py --set database.newdb.host localhost
+python scripts/config_tool.py --set database.newdb.port 9999
+```
 
 ## Related Documentation
 

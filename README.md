@@ -8,54 +8,70 @@
 ![Release](https://github.com/jdelgado-dtlabs/filamentenvmonitor/actions/workflows/release.yml/badge.svg)
 [![Latest Release](https://img.shields.io/github/v/release/jdelgado-dtlabs/filamentenvmonitor?label=latest%20release)](https://github.com/jdelgado-dtlabs/filamentenvmonitor/releases/latest)
 
-A Python 3.13 application for monitoring temperature and humidity in 3D printer filament storage environments. Supports multiple sensor types (BME280, DHT22) with robust data collection, batching, InfluxDB integration, active environment control, and both CLI and Web UI interfaces.
+A Python 3.13 application for monitoring temperature and humidity in 3D printer filament storage environments. Supports multiple sensor types (BME280, DHT22) and multiple time-series databases with encrypted configuration, optional HashiCorp Vault integration, robust data collection, batching, active environment control, and both CLI and Web UI interfaces.
 
-## Highlights (v1.6)
-- **Master Installer**: Interactive installation with directory selection and automatic configuration
-- **Version Control**: Smart update system with automatic version detection and graceful upgrades
+## Highlights (v2.0)
+- **🔐 Encrypted Configuration**: SQLCipher-based encrypted database with 256-bit AES encryption
+- **🔑 HashiCorp Vault Integration**: Optional enterprise-grade secret management for encryption keys
+- **📊 Multi-Database Support**: InfluxDB (v1/v2/v3), Prometheus, TimescaleDB, VictoriaMetrics, or sensor-only mode
+- **⚙️ Interactive Configuration Tool**: Menu-driven CLI for secure configuration management
+- **🚀 Auto-Generated Service Files**: Systemd services automatically configured for your installation
+- **📍 Portable Installation**: Install anywhere - dynamic path and user detection
+- **🔄 Auto-Migration**: Seamless upgrade from v1.x YAML/env files to encrypted database
+- **💾 Auto-Generated Encryption Keys**: Cryptographically secure 64-character keys
 - **Web UI**: Modern, responsive browser-based interface with real-time monitoring and control
-- **Production deployment**: Automated installers with OS detection (Debian/Ubuntu, RedHat/CentOS)
-- **Nginx integration**: Automated reverse proxy configuration for Docker and bare metal
 - Multi-sensor support: BME280 (I2C) and DHT22 (GPIO)
-- Temperature-controlled heating: GPIO relay control with hysteresis
-- Humidity-controlled exhaust fan: GPIO relay control with hysteresis
-- CLI interface: Real-time terminal-based monitoring and control
-- Reliable batching, exponential backoff with jitter, SQLite persistence
-- YAML config with env overrides and lazy loading
-- Full CI/CD: Ruff, Mypy, pytest (25 tests) on Python 3.11–3.13; automated Releases
+- Temperature and humidity control with GPIO relay support
 
 ## Features
+- **🔐 Security & Configuration**:
+  - Encrypted configuration database (SQLCipher with 256-bit AES)
+  - Auto-generated cryptographically secure encryption keys
+  - HashiCorp Vault integration for enterprise deployments
+  - Interactive configuration tool with menu-based selection
+  - Automatic migration from legacy YAML/.env files
+  - No plain-text passwords or credentials
+  
+- **📊 Database Flexibility**:
+  - **InfluxDB v1.x**: Traditional HTTP API with username/password
+  - **InfluxDB v2.x**: Modern API with token/bucket/org authentication
+  - **InfluxDB v3.x**: Cloud/serverless with database/token
+  - **Prometheus**: Pushgateway integration with job/instance/grouping keys
+  - **TimescaleDB**: PostgreSQL extension with hypertables
+  - **VictoriaMetrics**: High-performance metrics database
+  - **None**: Sensor-only mode without database storage
+  
 - **Multi-sensor support**: BME280 (I2C) and DHT22 (GPIO) with automatic detection
 - **Temperature control**: Optional GPIO relay control for heating with configurable thresholds
 - **Humidity control**: Optional GPIO relay control for exhaust fan with configurable thresholds
 - **Web UI**: Modern, responsive web interface accessible from any browser
 - **CLI interface**: Real-time monitoring and manual control of heater/fan with curses-based UI
 - **Reliable data collection**: Configurable intervals with graceful error handling
-- **Batched writes**: Optimized InfluxDB writes with size and time-based flush triggers
+- **Batched writes**: Optimized database writes with size and time-based flush triggers
 - **Automatic recovery**: SQLite persistence of unsent batches across restarts
 - **Smart retry logic**: Exponential backoff with jitter on write failures
 - **Alert system**: Configurable failure threshold with optional persistence
 - **Queue management**: Overflow handling that prioritizes fresh data
-- **Flexible configuration**: YAML-based with environment variable overrides
-- **Debug visibility**: Structured logging with batch preview before writes
-- **Production ready**: Systemd service integration with automated installer
+- **Production ready**: Auto-generated systemd services with Vault support
+- **Portable installation**: Works in any directory with dynamic path detection
 - **Code quality**: Full type hints, pre-commit hooks, automated CI/CD
-- **Remote InfluxDB**: Designed for network-based database deployments
 
 ## Documentation
 
+- **[Encryption Key Security](docs/ENCRYPTION_KEY_SECURITY.md)** - Key storage, loading priority, and security best practices
+- **[Vault Integration](docs/VAULT_INTEGRATION.md)** - HashiCorp Vault setup and configuration guide
+- **[Service Auto-Generation](docs/SERVICE_AUTO_GENERATION.md)** - Systemd service file generation
 - **[Installation Guide](install/INSTALL.md)** ([PDF](install/INSTALL.pdf)) - Complete installation and configuration guide
 - **[FilamentBox Core Module](filamentbox/README.md)** - Detailed module architecture and component documentation
 - **[Tests](tests/README.md)** - Complete testing documentation and guidelines
 - **[Web UI](webui/README.md)** - Web interface API documentation
-- **[Web UI Deployment](webui/WEBUI_DEPLOYMENT.md)** - Production deployment guide with nginx and HTTPS
 - **[CHANGELOG](CHANGELOG.md)** - Version history and release notes
 
 ## Quick Start
 
 ### Requirements
 - Python 3.13+ (virtual environment recommended)
-- InfluxDB 1.x HTTP API
+- One of: InfluxDB, Prometheus, TimescaleDB, VictoriaMetrics, or none (sensor-only)
 - Raspberry Pi with BME280 (I2C) or DHT22 (GPIO) sensor
 
 ### Installation
@@ -65,38 +81,97 @@ A Python 3.13 application for monitoring temperature and humidity in 3D printer 
 git clone https://github.com/jdelgado-dtlabs/filamentenvmonitor.git
 cd filamentenvmonitor
 
-# Optional: Run comprehensive configuration setup (creates .env file)
-# Supports all config.yaml options: InfluxDB, sensors, heating, humidity control, etc.
+# Run the interactive setup (creates encrypted configuration)
 ./install/setup.sh
 
-# Run the master installer
-sudo ./install/install.sh
+# Install services (auto-configured for your installation)
+sudo ./install/install_service.sh
+sudo ./install/install_webui_service.sh
 ```
 
-The installer handles everything: directory setup, service installation, and verification.
+The setup script will:
+1. Ask if you want to use HashiCorp Vault (optional)
+2. Auto-generate a strong encryption key
+3. Configure your database and sensor settings interactively
+4. Generate systemd service files for your installation
+5. Save everything securely
 
-**For detailed installation instructions, hardware setup, configuration options, and troubleshooting, see the [Installation Guide](install/INSTALL.md)** ([PDF version](install/INSTALL.pdf))
+**For detailed installation instructions, see the [Encryption Key Security Guide](docs/ENCRYPTION_KEY_SECURITY.md) and [Installation Guide](install/INSTALL.md)**
 
 ## Configuration
 
-Configuration is managed through `config.yaml` with optional environment variable overrides.
+Configuration is managed through an **encrypted SQLCipher database** with interactive menu-driven configuration tool.
 
-**Key configuration areas**:
-- InfluxDB connection settings
+### Interactive Configuration Tool
+
+```bash
+source filamentcontrol/bin/activate
+python scripts/config_tool.py --interactive
+```
+
+**Features**:
+- **B** - Browse and edit configuration by section
+- **N** - Add new configuration values
+- **S** - Search for configuration keys
+- **V** - View all configuration
+- **Menu-based selection** for database types, sensor types, booleans, SSL modes
+- **Special tag editor** for key-value pairs
+- **Automatic type detection** and conversion
+- **Sensitive value masking** for passwords and tokens
+
+### Key Configuration Areas
+- Database type and connection settings (7 database options)
 - Data collection intervals and batching
 - Sensor type and GPIO pins
 - Temperature and humidity control thresholds
 - Retry and persistence behavior
+- Custom tags for InfluxDB measurements
 
-**For complete configuration details, examples, and best practices, see the [Installation Guide](install/INSTALL.md#configuration-guide)**
+### Encryption Key Storage
+
+The encryption key can be stored in:
+1. **HashiCorp Vault** (recommended for production)
+2. **Local file** (`.config_key` with 600 permissions)
+3. **Environment variable** (`FILAMENTBOX_CONFIG_KEY`)
+
+**For complete configuration details, see [Encryption Key Security](docs/ENCRYPTION_KEY_SECURITY.md)**
 
 ## Running the Application
+
+### Service Mode (Recommended)
+```bash
+# Start services
+sudo systemctl start filamentbox.service
+sudo systemctl start filamentbox-webui.service
+
+# Check status
+sudo systemctl status filamentbox.service
+
+# View logs
+sudo journalctl -u filamentbox.service -f
+```
 
 ### Interactive Mode
 ```bash
 source filamentcontrol/bin/activate
 python -m filamentbox.main           # Normal run
 python -m filamentbox.main --debug   # Enable verbose debug logging
+```
+
+### Configuration Management
+```bash
+# Interactive configuration tool
+source filamentcontrol/bin/activate
+python scripts/config_tool.py --interactive
+
+# View all configuration
+python scripts/config_tool.py --list
+
+# Get specific value
+python scripts/config_tool.py --get database.type
+
+# Set value
+python scripts/config_tool.py --set database.influxdb.host localhost
 ```
 
 ### CLI Monitoring & Control Interface
@@ -190,19 +265,22 @@ The application supports optional GPIO relay control for both heating and humidi
 - Manual override capabilities
 
 **Quick Setup**:
-```yaml
-# In config.yaml
-heating_control:
-  enabled: true
-  gpio_pin: 16
-  min_temp_c: 18.0
-  max_temp_c: 22.0
+```bash
+# Configure using interactive tool
+python scripts/config_tool.py --interactive
 
-humidity_control:
-  enabled: true
-  gpio_pin: 20
-  min_humidity: 40.0
-  max_humidity: 60.0
+# Navigate to:
+# S - Select Section → heating_control
+# E - Edit Value → enabled = true
+# E - Edit Value → gpio_pin = 16
+# E - Edit Value → min_temp_c = 18.0
+# E - Edit Value → max_temp_c = 22.0
+
+# Or set directly via CLI
+python scripts/config_tool.py --set heating_control.enabled true
+python scripts/config_tool.py --set heating_control.gpio_pin 16
+python scripts/config_tool.py --set heating_control.min_temp_c 18.0
+python scripts/config_tool.py --set heating_control.max_temp_c 22.0
 ```
 
 ## Common Issues
@@ -211,10 +289,11 @@ Quick troubleshooting reference:
 
 | Symptom | Resolution |
 |--------|------------|
-| Database not found | Set `INFLUXDB_DATABASE` in config or environment |
-| Sensor read errors | Verify `sensor.type` in config matches hardware |
-| Service won't start | Check `config.yaml` exists and is valid |
-| Relay cycling rapidly | Increase gap between min/max thresholds |
+| Database not found | Configure database with `python scripts/config_tool.py --interactive` |
+| Sensor read errors | Verify `sensor.type` in encrypted config matches hardware |
+| Service won't start | Check encryption key is available and config database exists |
+| Relay cycling rapidly | Increase gap between min/max thresholds in config |
+| Missing encryption key | Run setup again or check `.config_key` file permissions |
 
 **For comprehensive troubleshooting, hardware setup, and debugging, see the [Installation Guide](install/INSTALL.md#troubleshooting)**
 
@@ -223,6 +302,12 @@ Quick troubleshooting reference:
 # Run application
 python -m filamentbox.main
 python -m filamentbox.main --debug
+
+# Configuration management
+python scripts/config_tool.py --interactive  # Interactive menu
+python scripts/config_tool.py --list         # View all config
+python scripts/config_tool.py --get database.type
+python scripts/config_tool.py --set sensor.type BME280
 
 # Service management
 sudo systemctl status filamentbox.service
@@ -246,22 +331,24 @@ For more detailed technical information, see:
 
 ### Module Responsibilities
 - `main.py` - Application entry point, thread orchestration, data collection loop
-- `sensor.py` - Multi-sensor abstraction (BME280/DHT22), lazy initialization, error handling
-- `influx_writer.py` - Batched InfluxDB writes, retry logic, alerting, queue management
+- `sensor.py` - Multi-sensor abstraction (BME280/DHT22/DHT11), lazy initialization, error handling
+- `database_writer.py` - Multi-backend support (InfluxDB v1/v2/v3, Prometheus, TimescaleDB, VictoriaMetrics)
 - `persistence.py` - SQLite-based batch recovery, pruning, error resilience
-- `config.py` - YAML + environment variable configuration with lazy loading
+- `config_db.py` - Encrypted SQLCipher configuration with HashiCorp Vault integration
 - `logging_config.py` - Dual-stream logging (stdout/stderr split)
 
-### Configuration Hierarchy
-1. `config.yaml` - Base configuration (checked into version control)
-2. `.env` - Local overrides for credentials and host-specific settings (gitignored)
-3. Environment variables - Runtime overrides (highest priority)
+### Configuration Architecture
+- **Encrypted Storage**: SQLCipher database with 256-bit AES encryption
+- **Key Management**: Auto-generated 64-character keys stored securely in `.config_key` or HashiCorp Vault
+- **Interactive Tool**: Letter-based menu system for browsing and editing all settings
+- **Type Safety**: Automatic type inference and preservation
+- **Migration**: Automatic import from legacy YAML/environment variable configs
 
 ### Data Flow
 ```
-Sensor → Read Loop → Validation → Queue → Batch Writer → InfluxDB
-                                     ↓
-                              Persistence Layer (on failures)
+Sensor → Read Loop → Validation → Queue → Batch Writer → Database Backend
+                                     ↓                    (InfluxDB/Prometheus/
+                              Persistence Layer           TimescaleDB/etc)
                                      ↓
                               Recovery on Restart
 ```
@@ -309,9 +396,15 @@ GitHub Actions runs automated checks on every push:
 Releases are automatically created when tags are pushed.
 
 ## Security Considerations
-- The systemd unit runs as `root` to ensure GPIO access and proper file management. 
-- Consider using a dedicated service user with appropriate group memberships (`gpio`, `i2c`) if your environment permits.
-- Hardening flags enabled: `ProtectSystem=strict`, `PrivateTmp=true`, `ReadWritePaths=/opt/filamentcontrol`
+- **Encrypted Configuration**: All sensitive data stored in SQLCipher database with 256-bit AES encryption
+- **Key Management**: Auto-generated cryptographically strong keys (384 bits entropy)
+- **Vault Integration**: Optional HashiCorp Vault support for enterprise deployments
+- **Service Isolation**: Systemd services run with hardening flags (`ProtectSystem=strict`, `PrivateTmp=true`)
+- **File Permissions**: Encryption key file restricted to 600 (owner read/write only)
+- **GPIO Access**: Service runs as `root` for GPIO/I2C access; consider dedicated service user with `gpio`, `i2c` groups
+- **Migration Security**: Legacy YAML/environment variable configs automatically imported and removed
+
+See [Encryption Key Security](docs/ENCRYPTION_KEY_SECURITY.md) and [Vault Integration](docs/VAULT_INTEGRATION.md) for detailed security documentation.
 
 ## Support
 
@@ -328,9 +421,10 @@ When filing issues, include:
 
 For detailed version history, release notes, and changelog, see [CHANGELOG.md](CHANGELOG.md).
 
-**Current Version**: v1.6.0
+**Current Version**: v2.0
 
 **Recent Releases**:
+- **v2.0** - Encrypted configuration, HashiCorp Vault integration, multi-database support, auto-generated service files
 - **v1.6.0** - Master installer, version control, smart updates
 - **v1.5.0** - Web UI, Flask REST API, enhanced deployment
 - **v1.1.0** - Environment control (heating/humidity), CLI interface

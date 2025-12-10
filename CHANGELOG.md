@@ -7,10 +7,135 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planning for v2.0
-- Major version release with breaking changes
-- Enhanced features and architecture improvements
-- Development branch: `release/v2.0-rc`
+## [2.0.0] - 2025-01-XX
+
+### 🔐 Security Overhaul
+**Breaking Changes**: Configuration system completely redesigned for security
+
+- **Encrypted Configuration Database**
+  - Migrated from plain-text YAML to SQLCipher encrypted database
+  - 256-bit AES encryption for all configuration data
+  - Automatic type inference and preservation
+  - No more sensitive credentials in version control
+  - Interactive configuration tool with letter-based menu navigation
+  - Browse, search, view, edit configuration with `scripts/config_tool.py`
+  - Automatic migration from legacy YAML and .env files
+
+- **Auto-Generated Encryption Keys**
+  - Cryptographically strong 64-character keys (384 bits entropy)
+  - Generated from `/dev/urandom` with base64 encoding
+  - Displayed during setup for user to save securely
+  - Stored in `.config_key` file with 600 permissions (owner read/write only)
+  - No more weak user-chosen passwords
+
+- **HashiCorp Vault Integration**
+  - Optional enterprise secret management support
+  - Token and AppRole authentication methods
+  - Automatic key retrieval with priority: env var > Vault > local file > default
+  - Interactive Vault configuration during setup
+  - `configure_vault.sh` helper script for Vault setup
+  - Comprehensive documentation in `docs/VAULT_INTEGRATION.md`
+
+### 📊 Multi-Database Support
+- **7 Database Backend Options**
+  - InfluxDB v1 (legacy)
+  - InfluxDB v2 (modern with organizations and buckets)
+  - InfluxDB v3 (latest with Apache Arrow)
+  - Prometheus (push gateway)
+  - TimescaleDB (PostgreSQL-based time-series)
+  - VictoriaMetrics (high-performance metrics)
+  - None (local-only mode)
+- **Database Abstraction Layer**
+  - Unified interface for all backends in `database_writer.py`
+  - Easy switching between backends via configuration
+  - Backend-specific optimizations and batching
+  - Menu-selectable database type in config tool
+
+### 🚀 Installation & Deployment Improvements
+- **Auto-Generated Service Files**
+  - Dynamic systemd service generation during setup
+  - Automatic Vault environment variable embedding
+  - No manual service file editing required
+  - `generate_service_files()` in setup.sh
+  - Documentation in `docs/SERVICE_AUTO_GENERATION.md`
+
+- **Portable Installation Support**
+  - Install in any directory: `/opt`, `/home`, `/srv`, etc.
+  - Auto-detection of installation path ($INSTALL_ROOT)
+  - Auto-detection of user/group (${SUDO_USER:-$USER})
+  - Dynamic service file generation with correct paths
+  - Works seamlessly across different deployment scenarios
+
+- **Interactive Setup Enhancements**
+  - Vault availability check during setup
+  - Optional hvac library installation
+  - Interactive Vault server and authentication configuration
+  - Graceful fallback to local file storage
+  - Clear status messages for Vault vs local storage
+
+### ⚙️ Configuration Management
+- **Interactive Configuration Tool** (`scripts/config_tool.py`)
+  - Letter-based menu commands (B/N/S/V/Q/E/D/C)
+  - Browse by section with hierarchical navigation
+  - Search by key name with fuzzy matching
+  - Menu selection for predefined values (database types, sensor types)
+  - Special tag editor for key-value pairs
+  - Sensitive value masking in display
+  - Type-safe value editing with validation
+
+- **Migration Tools**
+  - `scripts/migrate_config.py` - Automated YAML + .env → encrypted DB migration
+  - Preserves all settings during migration
+  - Automatic backup of legacy configuration files
+  - One-time migration with legacy file removal
+
+### 📚 Documentation
+- **New Security Documentation**
+  - `docs/ENCRYPTION_KEY_SECURITY.md` - Key generation, storage, loading, recovery
+  - `docs/VAULT_INTEGRATION.md` - Complete Vault setup guide with examples
+  - `docs/SERVICE_AUTO_GENERATION.md` - Service file generation and portable installation
+
+- **Updated Guides**
+  - README.md updated for v2.0 features and encrypted configuration
+  - Installation guide updated for new setup workflow
+  - Security considerations expanded with encryption and Vault
+
+### 🔧 Developer Experience
+- **Helper Scripts**
+  - `scripts/configure_vault.sh` - Interactive Vault configuration wizard
+  - `scripts/load_config_key.sh` - Helper for loading encryption keys in services
+  - Enhanced `install/setup.sh` with Vault support and service generation
+
+### Breaking Changes
+- **Configuration Migration Required**
+  - `config.yaml` and `.env` no longer supported
+  - Must run `install/setup.sh` or `scripts/migrate_config.py` to migrate
+  - Automatic migration preserves all settings
+  - Legacy files backed up before removal
+
+- **Environment Variables**
+  - `CONFIG_ENCRYPTION_KEY` replaces individual credential variables
+  - Vault environment variables added (`VAULT_ADDR`, `VAULT_TOKEN`, etc.)
+  - Legacy environment variables ignored after migration
+
+- **Service Files**
+  - Service files now auto-generated during setup
+  - Manual service file modifications will be overwritten
+  - Use setup script to regenerate services after changes
+
+### Removed
+- Legacy YAML configuration support
+- Legacy .env file support
+- Manual encryption key entry (replaced with auto-generation)
+- Hardcoded service file paths (replaced with dynamic generation)
+
+### Migration Path from v1.x
+1. Run `sudo ./install/setup.sh` (recommended) OR
+2. Run `python scripts/migrate_config.py` (manual migration)
+3. Save the displayed encryption key securely
+4. Legacy config files automatically backed up and removed
+5. Service files regenerated automatically
+6. No manual configuration required
 
 ## [1.6.1] - 2025-12-09
 

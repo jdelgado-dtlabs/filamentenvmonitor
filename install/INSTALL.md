@@ -25,12 +25,20 @@ Complete installation and configuration guide for the 3D Printer Filament Storag
 
 ### Software Requirements
 - **Python**: 3.13 (recommended) or 3.11+ 
-- **InfluxDB**: 1.x HTTP API (can be remote)
+- **SQLCipher**: For encrypted configuration (pysqlcipher3)
+- **Database Backend**: One of:
+  - InfluxDB v1/v2/v3 (can be remote)
+  - Prometheus (push gateway)
+  - TimescaleDB (PostgreSQL-based)
+  - VictoriaMetrics
+  - None (local-only mode)
 - **systemd**: For service management
 - **nginx**: Optional, for web UI reverse proxy
+- **HashiCorp Vault**: Optional, for enterprise secret management (hvac library)
 
 ### Network Requirements
-- Network access to InfluxDB server
+- Network access to database backend (if using remote database)
+- Optional: HashiCorp Vault server access
 - Optional: Web UI access (port 5000 or custom nginx config)
 
 ---
@@ -111,40 +119,76 @@ cd filamentenvmonitor
 
 Or download and extract the latest release:
 ```bash
-wget https://github.com/jdelgado-dtlabs/filamentenvmonitor/archive/refs/tags/v1.6.0.tar.gz
-tar -xzf v1.6.0.tar.gz
-cd filamentenvmonitor-1.6.0
+wget https://github.com/jdelgado-dtlabs/filamentenvmonitor/archive/refs/tags/v2.0.0.tar.gz
+tar -xzf v2.0.0.tar.gz
+cd filamentenvmonitor-2.0.0
 ```
 
-### Step 2: Configure Your Environment (Optional)
+### Step 2: Run Setup Script
 
-Run the interactive configuration setup to create a `.env` file with your settings:
+Run the interactive setup script to configure your encrypted database:
 
 ```bash
-./install/setup.sh
+sudo ./install/setup.sh
 ```
 
-The setup script supports all configuration categories:
-- **InfluxDB** (required): Host, port, database, credentials
-- **Data Collection**: Read intervals, batch sizes, measurement names, tags
-- **Queue**: In-memory queue sizing
-- **Retry**: Exponential backoff, alert thresholds
-- **Persistence**: Database path and batch limits
-- **Sensor** (required): Type (BME280/DHT22), GPIO pins, calibration
-- **Heating Control** (optional): Enable/disable, GPIO pin, temperature thresholds
-- **Humidity Control** (optional): Enable/disable, GPIO pin, humidity thresholds
+The setup script will:
 
-**Smart Category Detection**:
-- Existing categories are automatically included for updates
-- New categories prompt for opt-in configuration
-- Skip optional categories you don't need yet
-- Re-run anytime to add features like heating or humidity control
+1. **Generate Encryption Key**:
+   - Creates a cryptographically strong 64-character key
+   - Displays the key for you to save securely
+   - Stores in `.config_key` file with 600 permissions
 
-**Value Preservation**:
-- Reads existing `.env` values and shows as defaults
-- Only updates values you explicitly change
-- Automatic backup before modifications
-- Secure password handling (masked display)
+2. **Configure HashiCorp Vault (Optional)**:
+   - Asks if Vault is available for enterprise deployments
+   - Offers to install hvac library if needed
+   - Collects Vault server URL and authentication details
+   - Stores encryption key in Vault for centralized secret management
+   - Falls back to local file storage if Vault not configured
+
+3. **Configure Database Backend**:
+   - Choose from 7 database options:
+     - InfluxDB v1 (legacy)
+     - InfluxDB v2 (modern with organizations/buckets)
+     - InfluxDB v3 (latest with Apache Arrow)
+     - Prometheus (push gateway)
+     - TimescaleDB (PostgreSQL time-series)
+     - VictoriaMetrics (high-performance metrics)
+     - None (local-only mode)
+   - Enter connection details for chosen backend
+
+4. **Configure Sensor**:
+   - Select sensor type: BME280 (I2C), DHT22 (GPIO), DHT11 (GPIO)
+   - Configure GPIO pins if using DHT sensors
+   - Set calibration values
+
+5. **Optional Features**:
+   - Heating Control: Enable temperature control with relay
+   - Humidity Control: Enable humidity control with relay
+   - Data Collection: Set read intervals, batch sizes, tags
+
+6. **Generate Service Files**:
+   - Auto-generates systemd service files
+   - Embeds Vault environment variables if configured
+   - Uses dynamic installation path detection
+
+7. **Migrate Legacy Configuration**:
+   - Automatically imports from old `config.yaml` and `.env` files
+   - Backs up and removes legacy configuration files
+   - Preserves all existing settings
+
+**Interactive Configuration Tool**:
+After setup, use the configuration tool anytime:
+```bash
+python scripts/config_tool.py --interactive
+```
+
+Features:
+- Letter-based menu navigation (B/N/S/V/Q/E/D/C)
+- Browse by section, search by key
+- Menu selection for predefined values
+- Special tag editor for key-value pairs
+- Type-safe value editing
 
 ### Step 3: Run the Master Installer
 
@@ -178,25 +222,39 @@ The installer will ask:
    - Copies all application files
    - Sets proper ownership and permissions
 
-2. **Service Configuration**:
-   - Updates service files with correct paths
-   - Configures Python virtual environment path
-   - Sets working directory
+2. **Encryption & Security**:
+   - Generates 64-character encryption key (384 bits entropy)
+   - Stores key in `.config_key` with 600 permissions
+   - Optionally stores key in HashiCorp Vault
+   - Creates encrypted SQLCipher configuration database
 
-3. **Virtual Environment**:
+3. **Configuration**:
+   - Interactive database backend selection
+   - Sensor type and connection configuration
+   - Optional heating/humidity control setup
+   - Automatic migration from legacy YAML/.env files
+
+4. **Service Generation**:
+   - Auto-generates systemd service files with dynamic paths
+   - Embeds Vault environment variables if configured
+   - Configures Python virtual environment path
+   - Sets working directory based on installation location
+
+5. **Virtual Environment**:
    - Checks for existing virtual environment
    - Creates new environment if needed
-   - Installs Python dependencies
+   - Installs Python dependencies (including pysqlcipher3)
+   - Installs hvac library if Vault configured
 
-4. **Service Installation**:
+6. **Service Installation**:
    - Installs main application service
    - Installs web UI service
    - Enables services for auto-start
 
-5. **Verification**:
+7. **Verification**:
    - Checks service status
    - Shows logs if any issues occur
-   - Provides next steps
+   - Provides next steps and key backup reminder
 
 ### Post-Installation
 
@@ -229,11 +287,14 @@ sudo apt update
 sudo apt upgrade -y
 
 # Install system dependencies (Debian/Ubuntu)
-sudo apt install -y python3.13 python3.13-venv python3-pip git i2c-tools
+sudo apt install -y python3.13 python3.13-venv python3-pip git i2c-tools \
+    libsqlcipher-dev sqlcipher
 
 # For RedHat/CentOS
-sudo yum install -y python3.13 python3-pip git i2c-tools
+sudo yum install -y python3.13 python3-pip git i2c-tools sqlcipher sqlcipher-devel
 ```
+
+**Note**: SQLCipher libraries are required for encrypted configuration database support.
 
 ### Step 2: Enable I2C (for BME280)
 
@@ -287,11 +348,12 @@ pre-commit install
 ### Step 5: Configure Application
 
 ```bash
-# Copy example configuration
-cp config.yaml.example config.yaml
+# Run setup script for guided configuration
+sudo ../install/setup.sh
 
-# Edit configuration
-nano config.yaml
+# Or configure manually with config tool
+source filamentcontrol/bin/activate
+python scripts/config_tool.py --interactive
 ```
 
 See [Configuration Guide](#configuration-guide) below for detailed configuration options.
@@ -324,121 +386,235 @@ sudo ./install/install_webui_service.sh
 
 ## Configuration Guide
 
-### Primary Configuration File
+### v2.0 Encrypted Configuration
 
-All configuration is managed through `config.yaml` in the installation directory.
+All configuration is now stored in an **encrypted SQLCipher database** (`config.db`) instead of plain-text YAML files. This provides:
+- 256-bit AES encryption for all sensitive data
+- Type-safe value storage with automatic inference
+- No credentials in version control
+- Optional HashiCorp Vault integration
 
-#### InfluxDB Configuration
+### Configuration Tool
 
-```yaml
-influxdb:
-  host: "192.168.1.10"        # InfluxDB server IP or hostname
-  port: 8086                   # Default InfluxDB HTTP port
-  database: "filamentbox"      # Database name (must exist)
-  username: "admin"            # Username (can be overridden by env var)
-  password: "secret"           # Password (can be overridden by env var)
-```
+Use the interactive configuration tool to manage all settings:
 
-**Environment Variable Overrides**:
 ```bash
-# Create .env file in installation directory
-cat > .env << EOF
-INFLUXDB_USERNAME=admin
-INFLUXDB_PASSWORD=your_secure_password
-INFLUXDB_HOST=192.168.1.10
-INFLUXDB_PORT=8086
-INFLUXDB_DATABASE=filamentbox
-EOF
+source filamentcontrol/bin/activate
+python scripts/config_tool.py --interactive
 ```
 
-#### Data Collection Configuration
+**Letter-Based Menu Navigation**:
+- `B` - **Browse** sections (hierarchical navigation)
+- `N` - **Next** section (cycle through all sections)
+- `S` - **Search** for a key by name
+- `V` - **View** all configuration
+- `E` - **Edit** current section values
+- `D` - **Delete** a configuration key
+- `C` - **Create** a new configuration key
+- `Q` - **Quit**
 
-```yaml
-data_collection:
-  read_interval: 5             # Seconds between sensor reads
-  batch_size: 10               # Points per batch before write
-  flush_interval: 60           # Max seconds before forced flush
-  measurement: "environment"   # InfluxDB measurement name
-  tags:                        # Optional custom tags
-    location: "filamentbox"
-    device: "pi-zero"
-```
-
-**Environment Variable for Tags**:
+**Command-Line Configuration**:
 ```bash
-# Tags must be valid JSON
-DATA_COLLECTION_TAGS='{"location": "filamentbox", "device": "pi-zero", "room": "workshop"}'
+# View all configuration
+python scripts/config_tool.py --list
+
+# Get specific value
+python scripts/config_tool.py --get database.type
+python scripts/config_tool.py --get sensor.type
+
+# Set value (type automatically inferred)
+python scripts/config_tool.py --set database.influxdb_v2.org myorg
+python scripts/config_tool.py --set sensor.type BME280
+python scripts/config_tool.py --set heating_control.enabled true
+python scripts/config_tool.py --set heating_control.min_temp_c 18.0
+
+# Delete value
+python scripts/config_tool.py --delete unwanted.key
 ```
 
-#### Sensor Configuration
+### Database Backend Configuration
 
-**For BME280 (I2C)**:
-```yaml
-sensor:
-  type: "bme280"               # Sensor type
-  sea_level_pressure: 1013.25  # Reference pressure for altitude (hPa)
+Choose from 7 database backends. Configure during setup or change anytime with the config tool.
+
+#### InfluxDB v1 (Legacy)
+
+```bash
+python scripts/config_tool.py --set database.type influxdb_v1
+python scripts/config_tool.py --set database.influxdb_v1.host "192.168.1.10"
+python scripts/config_tool.py --set database.influxdb_v1.port 8086
+python scripts/config_tool.py --set database.influxdb_v1.database "filamentbox"
+python scripts/config_tool.py --set database.influxdb_v1.username "admin"
+python scripts/config_tool.py --set database.influxdb_v1.password "secret"
 ```
 
-**For DHT22 (GPIO)**:
-```yaml
-sensor:
-  type: "dht22"                # Sensor type
-  gpio_pin: 4                  # GPIO pin number (BCM numbering)
+#### InfluxDB v2 (Modern)
+
+```bash
+python scripts/config_tool.py --set database.type influxdb_v2
+python scripts/config_tool.py --set database.influxdb_v2.url "http://192.168.1.10:8086"
+python scripts/config_tool.py --set database.influxdb_v2.org "myorg"
+python scripts/config_tool.py --set database.influxdb_v2.bucket "filamentbox"
+python scripts/config_tool.py --set database.influxdb_v2.token "your-influxdb-token"
 ```
 
-#### Queue Management
+#### InfluxDB v3 (Latest)
 
-```yaml
-queue:
-  max_size: 1000               # Maximum points in memory queue
-                               # Oldest data dropped if exceeded
+```bash
+python scripts/config_tool.py --set database.type influxdb_v3
+python scripts/config_tool.py --set database.influxdb_v3.host "us-east-1-1.aws.cloud2.influxdata.com"
+python scripts/config_tool.py --set database.influxdb_v3.database "filamentbox"
+python scripts/config_tool.py --set database.influxdb_v3.token "your-v3-token"
 ```
 
-#### Retry & Backoff Configuration
+#### Prometheus (Push Gateway)
 
-```yaml
-retry:
-  backoff_base: 2.0            # Initial retry delay (seconds)
-  backoff_max: 300.0           # Maximum retry delay (5 minutes)
-  alert_threshold: 5           # Failed attempts before alert
-  persist_on_alert: true       # Save to SQLite on persistent failures
+```bash
+python scripts/config_tool.py --set database.type prometheus
+python scripts/config_tool.py --set database.prometheus.url "http://192.168.1.10:9091"
+python scripts/config_tool.py --set database.prometheus.job "filamentbox"
 ```
 
-#### Persistence Configuration
+#### TimescaleDB (PostgreSQL)
 
-```yaml
-persistence:
-  db_path: "unsent_batches.db" # SQLite database path (relative or absolute)
-  max_batches: 100             # Maximum batches to store
+```bash
+python scripts/config_tool.py --set database.type timescaledb
+python scripts/config_tool.py --set database.timescaledb.host "192.168.1.10"
+python scripts/config_tool.py --set database.timescaledb.port 5432
+python scripts/config_tool.py --set database.timescaledb.database "filamentbox"
+python scripts/config_tool.py --set database.timescaledb.user "postgres"
+python scripts/config_tool.py --set database.timescaledb.password "secret"
+python scripts/config_tool.py --set database.timescaledb.table "environment"
 ```
 
-#### Temperature Control Configuration
+#### VictoriaMetrics
 
-```yaml
-heating_control:
-  enabled: false               # Enable/disable temperature control
-  gpio_pin: 16                 # GPIO pin for heating relay (BCM numbering)
-  min_temp_c: 18.0            # Turn on heater below this temperature
-  max_temp_c: 22.0            # Turn off heater above this temperature
-  check_interval: 10           # Seconds between control checks
+```bash
+python scripts/config_tool.py --set database.type victoriametrics
+python scripts/config_tool.py --set database.victoriametrics.url "http://192.168.1.10:8428"
 ```
 
-**Hysteresis Example**:
-- Heater turns ON when temp < 18.0C
-- Heater turns OFF when temp > 22.0C
-- Between 18.0-22.0C: maintains current state
-- Prevents rapid on/off cycling
+#### None (Local-Only Mode)
 
-#### Humidity Control Configuration
-
-```yaml
-humidity_control:
-  enabled: false               # Enable/disable humidity control
-  gpio_pin: 20                 # GPIO pin for fan relay (BCM numbering)
-  min_humidity: 40.0          # Turn on fan above this humidity
-  max_humidity: 60.0          # Turn off fan below this humidity
-  check_interval: 10           # Seconds between control checks
+```bash
+python scripts/config_tool.py --set database.type none
+# No remote database - data logged locally only
 ```
+
+### Sensor Configuration
+
+**BME280 (I2C)**:
+```bash
+python scripts/config_tool.py --set sensor.type BME280
+python scripts/config_tool.py --set sensor.sea_level_pressure 1013.25
+```
+
+**DHT22 (GPIO)**:
+```bash
+python scripts/config_tool.py --set sensor.type DHT22
+python scripts/config_tool.py --set sensor.gpio_pin 4
+```
+
+**DHT11 (GPIO)**:
+```bash
+python scripts/config_tool.py --set sensor.type DHT11
+python scripts/config_tool.py --set sensor.gpio_pin 4
+```
+
+### Data Collection Configuration
+
+```bash
+python scripts/config_tool.py --set data_collection.read_interval 5
+python scripts/config_tool.py --set data_collection.batch_size 10
+python scripts/config_tool.py --set data_collection.flush_interval 60
+python scripts/config_tool.py --set data_collection.measurement "environment"
+
+# Tags (use interactive editor for key-value pairs)
+python scripts/config_tool.py --interactive
+# Navigate to data_collection section, Edit tags with special tag editor
+```
+
+### Temperature & Humidity Control
+
+**Heating Control**:
+```bash
+python scripts/config_tool.py --set heating_control.enabled true
+python scripts/config_tool.py --set heating_control.gpio_pin 16
+python scripts/config_tool.py --set heating_control.min_temp_c 18.0
+python scripts/config_tool.py --set heating_control.max_temp_c 22.0
+python scripts/config_tool.py --set heating_control.check_interval 10
+```
+
+**Humidity Control**:
+```bash
+python scripts/config_tool.py --set humidity_control.enabled true
+python scripts/config_tool.py --set humidity_control.gpio_pin 20
+python scripts/config_tool.py --set humidity_control.min_humidity 40.0
+python scripts/config_tool.py --set humidity_control.max_humidity 60.0
+python scripts/config_tool.py --set humidity_control.check_interval 10
+```
+
+**Hysteresis Behavior**:
+- Heater turns ON when temp < `min_temp_c`
+- Heater turns OFF when temp > `max_temp_c`
+- Between min/max: maintains current state (prevents rapid cycling)
+
+### Queue & Retry Configuration
+
+```bash
+python scripts/config_tool.py --set queue.max_size 1000
+python scripts/config_tool.py --set retry.backoff_base 2.0
+python scripts/config_tool.py --set retry.backoff_max 300.0
+python scripts/config_tool.py --set retry.alert_threshold 5
+python scripts/config_tool.py --set retry.persist_on_alert true
+```
+
+### Persistence Configuration
+
+```bash
+python scripts/config_tool.py --set persistence.db_path "unsent_batches.db"
+python scripts/config_tool.py --set persistence.max_batches 100
+```
+
+### Encryption Key Management
+
+The encryption key is automatically generated and stored during setup. For details on key storage, loading priority, and recovery, see:
+
+- [Encryption Key Security Guide](../docs/ENCRYPTION_KEY_SECURITY.md)
+- [HashiCorp Vault Integration Guide](../docs/VAULT_INTEGRATION.md)
+
+**Key Loading Priority**:
+1. `CONFIG_ENCRYPTION_KEY` environment variable
+2. HashiCorp Vault (if configured)
+3. `.config_key` file (local storage)
+4. Default key (insecure, not recommended)
+
+**Vault Configuration**:
+```bash
+# Set Vault environment variables
+export VAULT_ADDR="https://vault.example.com:8200"
+export VAULT_TOKEN="your-vault-token"
+
+# Or configure in service files (auto-generated by setup.sh)
+```
+
+### Legacy Configuration Migration
+
+If you have existing `config.yaml` or `.env` files from v1.x:
+
+```bash
+# Run migration script
+python scripts/migrate_config.py
+
+# Or run setup.sh which migrates automatically
+sudo ./install/setup.sh
+```
+
+Migration process:
+1. Reads all values from YAML and .env files
+2. Imports into encrypted database
+3. Backs up legacy files with timestamp
+4. Removes legacy files
+5. All settings preserved
 
 **Hysteresis Example**:
 - Fan turns ON when humidity > 60.0%
