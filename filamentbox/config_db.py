@@ -202,7 +202,7 @@ class ConfigDB:
         if sqlcipher is None:
             raise ImportError(
                 "SQLCipher not installed. Install with: pip install pysqlcipher3 (Python <3.13) "
-                "or pip install sqlcipher3-binary (Python 3.13+)"
+                "or pip install sqlcipher3-wheels (Python 3.13+)"
             )
 
         self.db_path = db_path

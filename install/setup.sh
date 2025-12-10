@@ -370,10 +370,10 @@ ensure_pysqlcipher3() {
         PYTHON_VERSION=$("$INSTALL_ROOT/filamentcontrol/bin/python" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
         echo -e "${CYAN}Python version: $PYTHON_VERSION${NC}"
         
-        # For Python 3.13+, use sqlcipher3-binary (pre-built wheels)
+        # For Python 3.13+, use sqlcipher3-wheels (pre-built wheels)
         if "$INSTALL_ROOT/filamentcontrol/bin/python" -c "import sys; sys.exit(0 if sys.version_info >= (3, 13) else 1)" 2>/dev/null; then
-            echo -e "${CYAN}Python 3.13+ detected. Installing sqlcipher3-binary...${NC}"
-            "$INSTALL_ROOT/filamentcontrol/bin/pip" install sqlcipher3-binary
+            echo -e "${CYAN}Python 3.13+ detected. Installing sqlcipher3-wheels...${NC}"
+            "$INSTALL_ROOT/filamentcontrol/bin/pip" install sqlcipher3-wheels
         else
             echo -e "${CYAN}Installing pysqlcipher3...${NC}"
             "$INSTALL_ROOT/filamentcontrol/bin/pip" install pysqlcipher3
