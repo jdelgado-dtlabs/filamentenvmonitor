@@ -1096,50 +1096,83 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
     """Edit a single configuration value."""
     # Special handling for tags
     if key == "data_collection.tags" or key == "database.influxdb.tags":
-        # For dict-based tags, use direct JSON editing
+        # For dict-based tags, use submenu with individual tag management
         import json
 
         while True:
             current_value = db.get(key)
+            if not isinstance(current_value, dict):
+                current_value = {}
 
             print_header(f"Edit: {key}")
             if description:
                 print(f"Description: {description}\n")
 
-            print("This field stores tags as a JSON object.")
-            print('Example: {"location": "garage", "device": "pi1", "environment": "production"}\n')
-
             if current_value:
-                print("Current value:")
-                if isinstance(current_value, dict):
-                    print(json.dumps(current_value, indent=2))
-                else:
-                    print(f"{current_value} (type: {type(current_value).__name__})")
+                print("Current tags:\n")
+                for tag_name, tag_value in sorted(current_value.items()):
+                    print(f"  {tag_name:<20} = {tag_value}")
+                print()
             else:
-                print("Current value: (not set)")
-            print()
+                print("No tags configured.\n")
 
-            print("E - Edit as JSON")
-            print("C - Clear (set to empty dict)")
+            print("A - Add/Edit tag")
+            print("D - Delete tag")
+            print("J - Edit as JSON (advanced)")
+            print("C - Clear all tags")
             print("B - Back")
             print("Q - Quit")
             print()
 
-            choice = input("Select option (E, C, B, or Q): ").strip().upper()
+            choice = input("Select option: ").strip().upper()
 
             if choice == "Q":
                 print("\nGoodbye!")
                 sys.exit(0)
             elif choice == "B":
                 return
-            elif choice == "C":
-                db.set(key, {}, description)
-                print(f"\n✓ Cleared {key} (set to empty dict)")
+            elif choice == "A":
+                # Add or edit a tag
+                tag_name = input("\nEnter tag name: ").strip()
+                if not tag_name:
+                    print("Tag name cannot be empty")
+                    input("\nPress Enter to continue...")
+                    continue
+
+                if tag_name in current_value:
+                    print(f"Current value: {current_value[tag_name]}")
+
+                tag_value = input(f"Enter value for '{tag_name}': ").strip()
+                if not tag_value:
+                    print("Tag value cannot be empty")
+                    input("\nPress Enter to continue...")
+                    continue
+
+                current_value[tag_name] = tag_value
+                db.set(key, current_value, description)
+                print(f"\n✓ Set {tag_name} = {tag_value}")
                 input("\nPress Enter to continue...")
-                return
-            elif choice == "E":
+
+            elif choice == "D":
+                # Delete a tag
+                if not current_value:
+                    print("\nNo tags to delete")
+                    input("\nPress Enter to continue...")
+                    continue
+
+                tag_name = input("\nEnter tag name to delete: ").strip()
+                if tag_name in current_value:
+                    del current_value[tag_name]
+                    db.set(key, current_value, description)
+                    print(f"\n✓ Deleted tag: {tag_name}")
+                else:
+                    print(f"\n✗ Tag '{tag_name}' not found")
+                input("\nPress Enter to continue...")
+
+            elif choice == "J":
+                # Edit as JSON
                 print("\nEnter JSON object (or press Enter to cancel):")
-                if current_value and isinstance(current_value, dict):
+                if current_value:
                     print(f"Current: {json.dumps(current_value)}")
 
                 new_value = input("> ").strip()
@@ -1157,14 +1190,20 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
 
                     db.set(key, parsed_value, description)
                     print(f"\n✓ Updated {key}")
-                    print(json.dumps(parsed_value, indent=2))
                     input("\nPress Enter to continue...")
-                    return
                 except json.JSONDecodeError as e:
                     print(f"\n✗ Invalid JSON: {e}")
                     input("\nPress Enter to continue...")
+
+            elif choice == "C":
+                # Clear all tags
+                confirm = input("Clear all tags? (yes/no): ").strip().lower()
+                if confirm == "yes":
+                    db.set(key, {}, description)
+                    print("\n✓ Cleared all tags")
+                    input("\nPress Enter to continue...")
             else:
-                print("Invalid option. Please select E, C, B, or Q.")
+                print("Invalid option.")
                 input("\nPress Enter to continue...")
         return
 
