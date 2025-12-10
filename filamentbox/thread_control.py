@@ -7,6 +7,8 @@ import logging
 import threading
 from typing import Callable, Optional
 
+from .shared_state import update_thread_status as _update_shared_state
+
 logger = logging.getLogger(__name__)
 
 # Thread registry
@@ -58,7 +60,7 @@ def get_thread_status() -> dict:
         Dictionary mapping thread names to their alive status
     """
     with _thread_lock:
-        return {
+        status = {
             name: {
                 "alive": thread.is_alive() if thread is not None else False,
                 "exists": thread is not None,
@@ -66,6 +68,9 @@ def get_thread_status() -> dict:
             }
             for name, thread in _threads.items()
         }
+        # Also update shared state for cross-process access
+        _update_shared_state(status)
+        return status
 
 
 def restart_thread(name: str) -> tuple[bool, str]:

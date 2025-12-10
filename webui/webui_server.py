@@ -16,10 +16,11 @@ from filamentbox.shared_state import (
     get_control_states,
     get_database_status,
     get_sensor_data,
+    get_thread_status,
     set_fan_manual_override,
     set_heater_manual_override,
 )
-from filamentbox.thread_control import get_thread_status, restart_thread
+from filamentbox.thread_control import restart_thread
 
 # Get the directory where this script is located
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

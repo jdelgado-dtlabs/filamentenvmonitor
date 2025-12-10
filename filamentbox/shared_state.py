@@ -34,6 +34,9 @@ _database_writer_alive: bool = False
 _database_last_write_time: Optional[float] = None
 _database_write_failures: int = 0
 
+# Thread status (updated from thread_control module)
+_threads_status: dict = {}
+
 
 def _write_state() -> None:
     """Write current state to file for inter-process communication."""
@@ -62,6 +65,7 @@ def _write_state() -> None:
                 "last_write_time": _database_last_write_time,
                 "write_failures": _database_write_failures,
             },
+            "threads": _threads_status,
         }
         # Write atomically by writing to temp file then renaming
         temp_file = _STATE_FILE + ".tmp"
@@ -299,3 +303,31 @@ def get_database_status() -> dict:
             "last_write_time": _database_last_write_time,
             "write_failures": _database_write_failures,
         }
+
+
+def update_thread_status(status: dict) -> None:
+    """Update thread status information.
+
+    Args:
+        status: Dictionary mapping thread names to their status info
+    """
+    global _threads_status
+    with _state_lock:
+        _threads_status = status
+        _write_state()
+
+
+def get_thread_status() -> dict:
+    """Get current thread status.
+
+    Returns:
+        Dictionary mapping thread names to their status information.
+    """
+    # Try reading from state file first (for cross-process access)
+    state = _read_state()
+    if state.get("threads"):
+        return state["threads"]
+
+    # Fallback to in-process state
+    with _state_lock:
+        return _threads_status

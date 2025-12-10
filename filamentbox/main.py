@@ -26,7 +26,11 @@ from .logging_config import configure_logging
 from .persistence import recover_persisted_batches
 from .sensor import convert_c_to_f, log_data, read_sensor_data
 from .shared_state import update_sensor_data
-from .thread_control import register_thread, register_restart_callback
+from .thread_control import (
+    get_thread_status,
+    register_restart_callback,
+    register_thread,
+)
 
 # Global stop event shared by all threads
 _stop_event = threading.Event()
@@ -279,6 +283,9 @@ def main() -> None:
     try:
         logging.info("Data collection started. Press Ctrl+C to stop.")
         while True:
+            # Update thread status in shared state (for web UI)
+            get_thread_status()
+
             # Monitor thread health for core threads
             if _writer_thread and not _writer_thread.is_alive():
                 logging.critical("Database writer thread has exited unexpectedly!")
