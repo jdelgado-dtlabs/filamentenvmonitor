@@ -610,30 +610,16 @@ if [ -f "$CONFIG_DB" ]; then
         fi
     fi
     
-    # Configuration exists - offer to reconfigure or exit
-    echo -e "${CYAN}Configuration Management Options:${NC}"
-    echo "  1) Reconfigure everything (encryption key, Vault, database)"
-    echo "  2) Exit"
+    # Configuration exists - exit (key already in use)
+    echo -e "${GREEN}Setup already complete.${NC}"
+    echo -e "${YELLOW}Your encryption key is already configured and in use.${NC}"
     echo ""
-    read -p "Enter choice (1-2): " CONFIG_CHOICE
-    
-    case ${CONFIG_CHOICE} in
-        1)
-            echo -e "${YELLOW}This will regenerate encryption keys and reconfigure everything.${NC}"
-            read -p "Continue? (y/N): " CONFIRM
-            if [[ ! $CONFIRM =~ ^[Yy]$ ]]; then
-                exit 0
-            fi
-            # Continue to reconfiguration below
-            ;;
-        2)
-            exit 0
-            ;;
-        *)
-            echo -e "${RED}Invalid choice${NC}"
-            exit 1
-            ;;
-    esac
+    echo -e "${CYAN}To reconfigure, manually remove:${NC}"
+    echo -e "${CYAN}  - Database: $CONFIG_DB${NC}"
+    echo -e "${CYAN}  - Key file: $KEY_FILE${NC}"
+    echo -e "${CYAN}Then run setup.sh again.${NC}"
+    echo ""
+    exit 0
 fi
 
 # Check for legacy configuration files and auto-migrate
