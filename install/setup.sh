@@ -272,9 +272,11 @@ save_encryption_key() {
 
 # Function to prompt for encryption key
 prompt_encryption_key() {
-    # First, ask about Vault
+    # First, ask about Vault (capture return value, don't exit on non-zero)
+    set +e
     configure_vault_interactive
     VAULT_CONFIGURED=$?
+    set -e
     
     echo ""
     echo -e "${YELLOW}========================================${NC}"
