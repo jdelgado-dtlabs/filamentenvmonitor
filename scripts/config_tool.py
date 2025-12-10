@@ -26,6 +26,8 @@ CONFIG_SCHEMA = {
             "token": {"type": "str", "desc": "InfluxDB authentication token", "sensitive": True},
             "org": {"type": "str", "desc": "InfluxDB organization name"},
             "bucket": {"type": "str", "desc": "InfluxDB bucket name"},
+            "measurement": {"type": "str", "desc": "InfluxDB measurement name"},
+            "tags": {},  # Flexible tags - any key-value pairs allowed
         },
         "sqlite": {
             "enabled": {"type": "bool", "desc": "Enable SQLite data storage"},
@@ -88,8 +90,8 @@ LEGACY_KEY_MAPPINGS = {
     "influxdb.bucket": "database.influxdb.bucket",
     "influxdb.url": "database.influxdb.url",
     # Data collection keys
-    "data.collection.measurement": None,  # Not used in new schema
-    "data.collection.tags": None,  # Tags are flexible, not in strict schema
+    "data.collection.measurement": "database.influxdb.measurement",
+    "data.collection.tags": "database.influxdb.tags",  # Special handling needed for JSON
     # Sensor keys (old flat structure → new nested)
     "sensor.bme280.enabled": "sensors.bme280.enabled",
     "sensor.bme280.address": "sensors.bme280.i2c_address",
@@ -211,8 +213,8 @@ def fix_invalid_keys_menu(db: ConfigDB):
 
     invalid_keys = {}
     for db_key in all_db_keys:
-        # Skip tags
-        if ".tags." in db_key:
+        # Skip flexible tag keys (database.influxdb.tags.*)
+        if db_key.startswith("database.influxdb.tags."):
             continue
         if db_key not in valid_keys:
             similar = find_similar_key(db_key, valid_keys)
@@ -273,14 +275,41 @@ def fix_invalid_keys_menu(db: ConfigDB):
                     if k not in ["influxdb.host", "influxdb.port"]
                 }
 
+        # Special handling for data.collection.tags → database.influxdb.tags.*
+        if "data.collection.tags" in invalid_keys:
+            import json
+
+            tags_value = db.get("data.collection.tags")
+            if tags_value:
+                try:
+                    # Parse JSON tags
+                    if isinstance(tags_value, str):
+                        tags_dict = json.loads(tags_value)
+                    elif isinstance(tags_value, dict):
+                        tags_dict = tags_value
+                    else:
+                        tags_dict = {}
+
+                    # Create individual tag keys
+                    for tag_name, tag_value in tags_dict.items():
+                        tag_key = f"database.influxdb.tags.{tag_name}"
+                        db.set(tag_key, tag_value)
+                        print(f"✓ Migrated tag: {tag_name} → {tag_key} = {tag_value}")
+                        migrated += 1
+
+                    db.delete("data.collection.tags")
+                    # Remove from invalid_keys
+                    invalid_keys = {
+                        k: v for k, v in invalid_keys.items() if k != "data.collection.tags"
+                    }
+                except (json.JSONDecodeError, ValueError) as e:
+                    print(f"⚠ Warning: Could not parse tags JSON: {e}")
+                    skipped.append("data.collection.tags (invalid JSON)")
+
         # Process remaining keys
         for invalid_key, suggested_key in invalid_keys.items():
             if suggested_key is None:
-                # Check if it's a flexible key (like tags)
-                if ".tags" in invalid_key or invalid_key.startswith("data.collection"):
-                    skipped.append(f"{invalid_key} (flexible key, keeping)")
-                else:
-                    skipped.append(f"{invalid_key} (no suggestion)")
+                skipped.append(f"{invalid_key} (no suggestion)")
             else:
                 value = db.get(invalid_key)
 
