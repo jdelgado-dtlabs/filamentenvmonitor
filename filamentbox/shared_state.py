@@ -1,19 +1,14 @@
 """Shared state for monitoring and control across modules.
 
-Provides thread-safe and process-safe access to current sensor readings and control states.
-Uses a JSON file for inter-process communication.
+Provides thread-safe access to current sensor readings and control states.
+All data is kept in-memory with thread locks - no file I/O.
 """
 
-import json
-import os
 import threading
 from typing import Optional
 
 # Shared state with thread-safe access
 _state_lock = threading.Lock()
-
-# State file for inter-process communication
-_STATE_FILE = os.path.join(os.path.dirname(__file__), "..", ".shared_state.json")
 
 # Current sensor readings
 _temperature_c: Optional[float] = None
@@ -37,60 +32,8 @@ _database_write_failures: int = 0
 # Thread status (updated from thread_control module)
 _threads_status: dict = {}
 
-# Thread restart requests (for cross-process restart signaling)
+# Thread restart requests (for orchestrator signaling)
 _thread_restart_requests: dict[str, float] = {}  # thread_name -> timestamp
-
-
-def _write_state() -> None:
-    """Write current state to file for inter-process communication."""
-    try:
-        state = {
-            "sensor": {
-                "temperature_c": _temperature_c,
-                "temperature_f": _temperature_f,
-                "humidity": _humidity,
-                "timestamp": _last_reading_time,
-            },
-            "controls": {
-                "heater": {
-                    "on": _heater_state,
-                    "manual": _heater_manual_override,
-                },
-                "fan": {
-                    "on": _fan_state,
-                    "manual": _fan_manual_override,
-                },
-            },
-            "database": {
-                "type": _database_type,
-                "enabled": _database_enabled,
-                "writer_alive": _database_writer_alive,
-                "last_write_time": _database_last_write_time,
-                "write_failures": _database_write_failures,
-            },
-            "threads": _threads_status,
-            "thread_restart_requests": _thread_restart_requests,
-        }
-        # Write atomically by writing to temp file then renaming
-        temp_file = _STATE_FILE + ".tmp"
-        with open(temp_file, "w") as f:
-            json.dump(state, f)
-        os.rename(temp_file, _STATE_FILE)
-    except Exception:
-        # Silently ignore write errors to avoid disrupting main application
-        pass
-
-
-def _read_state() -> dict:
-    """Read state from file for inter-process communication."""
-    try:
-        if os.path.exists(_STATE_FILE):
-            with open(_STATE_FILE, "r") as f:
-                return json.load(f)
-    except Exception:
-        # Silently ignore read errors
-        pass
-    return {}
 
 
 def update_sensor_data(
@@ -113,7 +56,6 @@ def update_sensor_data(
         _temperature_f = temperature_f
         _humidity = humidity
         _last_reading_time = timestamp
-        _write_state()
 
 
 def get_sensor_data() -> dict:
@@ -122,12 +64,6 @@ def get_sensor_data() -> dict:
     Returns:
         Dictionary with temperature_c, temperature_f, humidity, and timestamp.
     """
-    # Try reading from state file first (for cross-process access)
-    state = _read_state()
-    if state.get("sensor"):
-        return state["sensor"]
-
-    # Fallback to in-process state
     with _state_lock:
         return {
             "temperature_c": _temperature_c,
@@ -146,7 +82,6 @@ def update_heater_state(state: bool) -> None:
     global _heater_state
     with _state_lock:
         _heater_state = state
-        _write_state()
 
 
 def get_heater_state() -> bool:
@@ -168,7 +103,6 @@ def update_fan_state(state: bool) -> None:
     global _fan_state
     with _state_lock:
         _fan_state = state
-        _write_state()
 
 
 def get_fan_state() -> bool:
@@ -190,7 +124,6 @@ def set_heater_manual_override(state: Optional[bool]) -> None:
     global _heater_manual_override
     with _state_lock:
         _heater_manual_override = state
-        _write_state()
 
 
 def get_heater_manual_override() -> Optional[bool]:
@@ -212,7 +145,6 @@ def set_fan_manual_override(state: Optional[bool]) -> None:
     global _fan_manual_override
     with _state_lock:
         _fan_manual_override = state
-        _write_state()
 
 
 def get_fan_manual_override() -> Optional[bool]:
@@ -231,18 +163,6 @@ def get_control_states() -> dict:
     Returns:
         Dictionary with heater and fan states and manual overrides.
     """
-    # Try reading from state file first (for cross-process access)
-    state = _read_state()
-    if state.get("controls"):
-        controls = state["controls"]
-        return {
-            "heater_on": controls.get("heater", {}).get("on", False),
-            "fan_on": controls.get("fan", {}).get("on", False),
-            "heater_manual": controls.get("heater", {}).get("manual"),
-            "fan_manual": controls.get("fan", {}).get("manual"),
-        }
-
-    # Fallback to in-process state
     with _state_lock:
         return {
             "heater_on": _heater_state,
@@ -277,7 +197,6 @@ def update_database_status(
         if last_write_time is not None:
             _database_last_write_time = last_write_time
         _database_write_failures = write_failures
-        _write_state()
 
 
 def get_database_status() -> dict:
@@ -286,19 +205,6 @@ def get_database_status() -> dict:
     Returns:
         Dictionary with database type, enabled status, writer status, and metrics.
     """
-    # Try reading from state file first (for cross-process access)
-    state = _read_state()
-    if state.get("database"):
-        db = state["database"]
-        return {
-            "database_type": db.get("type", "unknown"),
-            "enabled": db.get("enabled", False),
-            "writer_alive": db.get("writer_alive", False),
-            "last_write_time": db.get("last_write_time"),
-            "write_failures": db.get("write_failures", 0),
-        }
-
-    # Fallback to in-process state
     with _state_lock:
         return {
             "database_type": _database_type,
@@ -318,7 +224,6 @@ def update_thread_status(status: dict) -> None:
     global _threads_status
     with _state_lock:
         _threads_status = status
-        _write_state()
 
 
 def get_thread_status() -> dict:
@@ -327,18 +232,12 @@ def get_thread_status() -> dict:
     Returns:
         Dictionary mapping thread names to their status information.
     """
-    # Try reading from state file first (for cross-process access)
-    state = _read_state()
-    if state.get("threads"):
-        return state["threads"]
-
-    # Fallback to in-process state
     with _state_lock:
-        return _threads_status
+        return _threads_status.copy()
 
 
 def request_thread_restart(thread_name: str) -> None:
-    """Request a thread restart (cross-process signal).
+    """Request a thread restart (orchestrator signal).
 
     Args:
         thread_name: Name of the thread to restart
@@ -348,7 +247,6 @@ def request_thread_restart(thread_name: str) -> None:
     global _thread_restart_requests
     with _state_lock:
         _thread_restart_requests[thread_name] = time.time()
-        _write_state()
 
 
 def get_thread_restart_requests() -> dict[str, float]:
@@ -357,12 +255,6 @@ def get_thread_restart_requests() -> dict[str, float]:
     Returns:
         Dictionary mapping thread names to request timestamps
     """
-    # Try reading from state file first (for cross-process access)
-    state = _read_state()
-    if state.get("thread_restart_requests"):
-        return state["thread_restart_requests"]
-
-    # Fallback to in-process state
     with _state_lock:
         return _thread_restart_requests.copy()
 
@@ -377,4 +269,3 @@ def clear_thread_restart_request(thread_name: str) -> None:
     with _state_lock:
         if thread_name in _thread_restart_requests:
             del _thread_restart_requests[thread_name]
-            _write_state()
