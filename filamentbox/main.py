@@ -35,7 +35,7 @@ def data_collection_cycle() -> None:
     Converts raw sensor output to floats, filters out None values, attaches
     configured tags (if any), and skips points with no valid numeric fields.
     """
-    read_interval = get("data_collection.read_interval")
+    read_interval = get("data_collection.read_interval", 5.0)
     while not _stop_event.is_set():
         temperature_c, humidity = read_sensor_data()
         temperature_f = convert_c_to_f(temperature_c) if temperature_c is not None else None
@@ -59,8 +59,9 @@ def data_collection_cycle() -> None:
             logging.warning(f"Invalid humidity value: {humidity}; skipping")
             humidity = None
 
-        measurement = get("data_collection.measurement") or "environment"
-        tags = get("data_collection.tags")
+        # Use measurement and tags from InfluxDB config, with sensible defaults
+        measurement = get("database.influxdb.measurement", "environment")
+        tags = get("database.influxdb.tags", {})
 
         # Warn if any sensor values are None (visibility for intermittent issues)
         if temperature_c is None or temperature_f is None or humidity is None:

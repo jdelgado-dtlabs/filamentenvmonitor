@@ -744,6 +744,24 @@ if [ "$LEGACY_FILES_EXIST" = true ]; then
         echo -e "${YELLOW}The application will automatically load the key.${NC}"
         echo ""
         
+        # Populate any missing defaults (migration might not have all keys)
+        echo -e "${CYAN}Checking for missing default configuration values...${NC}"
+        echo ""
+        cd "$INSTALL_ROOT"
+        "$INSTALL_ROOT/filamentcontrol/bin/python" scripts/populate_defaults.py \
+            --db "$CONFIG_DB" \
+            --key "$ENCRYPTION_KEY"
+        
+        if [ $? -eq 0 ]; then
+            echo ""
+            echo -e "${GREEN}Default values populated (if any were missing).${NC}"
+            echo ""
+        else
+            echo ""
+            echo -e "${YELLOW}Warning: Failed to populate default values.${NC}"
+            echo ""
+        fi
+        
         # Generate service files
         generate_service_files
         
@@ -797,6 +815,25 @@ fi
 echo ""
 echo -e "${YELLOW}The application will automatically load the key.${NC}"
 echo ""
+
+# Populate configuration database with default values
+echo -e "${CYAN}Populating configuration database with default values...${NC}"
+echo ""
+cd "$INSTALL_ROOT"
+"$INSTALL_ROOT/filamentcontrol/bin/python" scripts/populate_defaults.py \
+    --db "$CONFIG_DB" \
+    --key "$ENCRYPTION_KEY"
+
+if [ $? -eq 0 ]; then
+    echo ""
+    echo -e "${GREEN}Configuration database initialized with defaults.${NC}"
+    echo ""
+else
+    echo ""
+    echo -e "${YELLOW}Warning: Failed to populate default values.${NC}"
+    echo -e "${YELLOW}You can set configuration values manually using config_tool.py${NC}"
+    echo ""
+fi
 
 # Generate service files
 generate_service_files

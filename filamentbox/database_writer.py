@@ -23,16 +23,16 @@ from .databases import create_database_adapter
 from .persistence import persist_batch
 from .shared_state import update_database_status
 
-# Configuration
-DATA_COLLECTION_ENABLED = get("data_collection.enabled")
-DB_TYPE = get("database.type")
-BATCH_SIZE = get("data_collection.batch_size")
-FLUSH_INTERVAL = get("data_collection.flush_interval")
-WRITE_QUEUE_MAXSIZE = get("queue.max_size")
-BACKOFF_BASE = get("retry.backoff_base")
-BACKOFF_MAX = get("retry.backoff_max")
-ALERT_FAILURE_THRESHOLD = get("retry.alert_threshold")
-PERSIST_UNSENT_ON_ALERT = get("retry.persist_on_alert")
+# Configuration with sensible defaults for missing keys
+DATA_COLLECTION_ENABLED = get("data_collection.enabled", True)  # Default: enabled
+DB_TYPE = get("database.type", "none")  # Default: no database (sensor-only mode)
+BATCH_SIZE = get("data_collection.batch_size", 10)
+FLUSH_INTERVAL = get("data_collection.flush_interval", 60)
+WRITE_QUEUE_MAXSIZE = get("queue.max_size", 10000)  # Legacy key, not in schema
+BACKOFF_BASE = get("retry.backoff_base", 2)  # Legacy key, not in schema
+BACKOFF_MAX = get("retry.backoff_max", 300)  # Legacy key, not in schema (5 minutes)
+ALERT_FAILURE_THRESHOLD = get("retry.alert_threshold", 5)  # Legacy key, not in schema
+PERSIST_UNSENT_ON_ALERT = get("retry.persist_on_alert", True)  # Legacy key, not in schema
 
 # Global queue and alert handler
 write_queue: "queue.Queue[dict[str, Any]]" = queue.Queue(maxsize=WRITE_QUEUE_MAXSIZE)
@@ -43,61 +43,67 @@ def get_database_config(db_type: str) -> dict[str, Any]:
     """Get database configuration for the specified database type.
 
     Args:
-        db_type: Database type (influxdb, influxdb2, influxdb3, prometheus,
-                                timescaledb, victoriametrics, none)
+        db_type: Database type (influxdb, prometheus, timescaledb, victoriametrics, none)
 
     Returns:
         Dictionary with database-specific configuration parameters.
     """
     if db_type == "influxdb":
-        return {
-            "host": get("database.influxdb.host"),
-            "port": get("database.influxdb.port"),
+        # Unified InfluxDB configuration with version selector
+        version = get("database.influxdb.version", "2")
+        url = get("database.influxdb.url")
+
+        # Parse URL to extract host and port for v1 adapter
+        host = "localhost"
+        port = 8086
+        if url:
+            import re
+
+            match = re.match(r"^https?://([\w\.\-]+):(\d+)$", url)
+            if match:
+                host = match.group(1)
+                port = int(match.group(2))
+
+        config = {
+            "version": version,
+            "url": url,
+            "token": get("database.influxdb.token"),
+            "org": get("database.influxdb.org"),
+            "bucket": get("database.influxdb.bucket"),
             "username": get("database.influxdb.username"),
-            "password": get("database.influxdb.password"),
-            "database": get("database.influxdb.database"),
-            "ssl": get("database.influxdb.ssl"),
-            "verify_ssl": get("database.influxdb.verify_ssl"),
+            # For v1 compatibility
+            "host": host,
+            "port": port,
+            "password": get("database.influxdb.token"),  # Use token as password for v1
+            "database": get("database.influxdb.bucket"),  # Use bucket as database for v1
         }
-    elif db_type == "influxdb2":
-        return {
-            "url": get("database.influxdb2.url"),
-            "token": get("database.influxdb2.token"),
-            "org": get("database.influxdb2.org"),
-            "bucket": get("database.influxdb2.bucket"),
-            "verify_ssl": get("database.influxdb2.verify_ssl"),
-        }
-    elif db_type == "influxdb3":
-        return {
-            "host": get("database.influxdb3.host"),
-            "token": get("database.influxdb3.token"),
-            "database": get("database.influxdb3.database"),
-            "org": get("database.influxdb3.org"),
-        }
+        return config
+
     elif db_type == "prometheus":
         return {
-            "gateway_url": get("database.prometheus.gateway_url"),
-            "job_name": get("database.prometheus.job_name"),
+            "pushgateway_url": get("database.prometheus.pushgateway_url"),
+            "job": get("database.prometheus.job"),
+            "instance": get("database.prometheus.instance"),
+            "grouping_keys": get("database.prometheus.grouping_keys", {}),
             "username": get("database.prometheus.username"),
             "password": get("database.prometheus.password"),
-            "grouping_key": get("database.prometheus.grouping_key"),
         }
     elif db_type == "timescaledb":
         return {
             "host": get("database.timescaledb.host"),
-            "port": get("database.timescaledb.port"),
+            "port": get("database.timescaledb.port", 5432),
             "database": get("database.timescaledb.database"),
             "username": get("database.timescaledb.username"),
             "password": get("database.timescaledb.password"),
-            "table_name": get("database.timescaledb.table_name"),
-            "ssl_mode": get("database.timescaledb.ssl_mode"),
+            "table": get("database.timescaledb.table", "environment_data"),
+            "ssl_mode": get("database.timescaledb.ssl_mode", "prefer"),
         }
     elif db_type == "victoriametrics":
         return {
             "url": get("database.victoriametrics.url"),
             "username": get("database.victoriametrics.username"),
             "password": get("database.victoriametrics.password"),
-            "timeout": get("database.victoriametrics.timeout"),
+            "timeout": get("database.victoriametrics.timeout", 10),
         }
     else:  # none or unknown
         return {}

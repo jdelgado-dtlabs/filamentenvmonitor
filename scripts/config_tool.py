@@ -9,163 +9,19 @@ import argparse
 import getpass
 import logging
 import os
+import subprocess
 import sys
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from filamentbox.config_db import ConfigDB, CONFIG_DB_PATH, CONFIG_DB_KEY_ENV
-
-
-# Configuration schema: defines allowed configuration keys
-CONFIG_SCHEMA = {
-    "database": {
-        "influxdb": {
-            "enabled": {"type": "bool", "desc": "Enable InfluxDB data storage"},
-            "url": {
-                "type": "str",
-                "desc": "InfluxDB server URL",
-                "example": "http://192.168.1.100:8086",
-            },
-            "token": {
-                "type": "str",
-                "desc": "InfluxDB authentication token",
-                "sensitive": True,
-                "example": "your-token-here",
-            },
-            "org": {
-                "type": "str",
-                "desc": "InfluxDB organization name",
-                "example": "myorg",
-            },
-            "bucket": {
-                "type": "str",
-                "desc": "InfluxDB bucket name",
-                "example": "sensors",
-            },
-            "measurement": {
-                "type": "str",
-                "desc": "InfluxDB measurement name",
-                "example": "environment",
-            },
-            "tags": {},  # Flexible tags - any key-value pairs allowed
-        },
-        "sqlite": {
-            "enabled": {"type": "bool", "desc": "Enable SQLite data storage"},
-            "path": {
-                "type": "str",
-                "desc": "Path to SQLite database file",
-                "example": "/var/lib/filamentbox/data.db",
-            },
-        },
-    },
-    "sensors": {
-        "bme280": {
-            "enabled": {"type": "bool", "desc": "Enable BME280 sensor"},
-            "i2c_address": {
-                "type": "str",
-                "desc": "I2C address",
-                "example": "0x76",
-            },
-        },
-        "dht22": {
-            "enabled": {"type": "bool", "desc": "Enable DHT22 sensor"},
-            "gpio_pin": {
-                "type": "int",
-                "desc": "GPIO pin number",
-                "example": "4",
-            },
-        },
-    },
-    "bluetooth": {
-        "enabled": {"type": "bool", "desc": "Enable Bluetooth scanning"},
-        "scan_interval": {
-            "type": "int",
-            "desc": "Scan interval in seconds",
-            "example": "60",
-        },
-        "device_timeout": {
-            "type": "int",
-            "desc": "Device timeout in seconds",
-            "example": "300",
-        },
-    },
-    "webui": {
-        "enabled": {"type": "bool", "desc": "Enable web UI"},
-        "host": {
-            "type": "str",
-            "desc": "Web UI host address",
-            "example": "0.0.0.0",
-        },
-        "port": {
-            "type": "int",
-            "desc": "Web UI port number",
-            "example": "5000",
-        },
-    },
-    "notifications": {
-        "telegram": {
-            "enabled": {"type": "bool", "desc": "Enable Telegram notifications"},
-            "bot_token": {
-                "type": "str",
-                "desc": "Telegram bot token",
-                "sensitive": True,
-                "example": "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
-            },
-            "chat_id": {
-                "type": "str",
-                "desc": "Telegram chat ID",
-                "example": "123456789",
-            },
-        },
-        "email": {
-            "enabled": {"type": "bool", "desc": "Enable email notifications"},
-            "smtp_host": {
-                "type": "str",
-                "desc": "SMTP server host",
-                "example": "smtp.gmail.com",
-            },
-            "smtp_port": {
-                "type": "int",
-                "desc": "SMTP server port",
-                "example": "587",
-            },
-            "username": {
-                "type": "str",
-                "desc": "SMTP username",
-                "example": "user@example.com",
-            },
-            "password": {
-                "type": "str",
-                "desc": "SMTP password",
-                "sensitive": True,
-                "example": "app-password",
-            },
-            "from_addr": {
-                "type": "str",
-                "desc": "From email address",
-                "example": "alerts@example.com",
-            },
-            "to_addr": {
-                "type": "str",
-                "desc": "To email address",
-                "example": "admin@example.com",
-            },
-        },
-    },
-    "monitoring": {
-        "interval": {
-            "type": "int",
-            "desc": "Data collection interval in seconds",
-            "example": "60",
-        },
-        "log_level": {
-            "type": "str",
-            "desc": "Logging level",
-            "example": "INFO",
-        },
-    },
-}
+from filamentbox.config_schema import (
+    CONFIG_SCHEMA,
+    get_all_keys,
+    get_key_info,
+    validate_value,
+)
 
 
 # Legacy key mappings: maps old keys to new schema keys
@@ -195,49 +51,6 @@ LEGACY_KEY_MAPPINGS = {
     "webui.host": "webui.host",
     "webui.port": "webui.port",
 }
-
-
-def get_all_valid_keys(schema: dict, prefix: str = "") -> set[str]:
-    """Recursively get all valid keys from schema."""
-    valid_keys = set()
-
-    for key, value in schema.items():
-        if prefix:
-            full_key = f"{prefix}.{key}"
-        else:
-            full_key = key
-
-        if isinstance(value, dict):
-            # Check if this is a leaf node (has 'type' key) or intermediate node
-            if "type" in value:
-                # Leaf node - this is a valid configuration key
-                valid_keys.add(full_key)
-            else:
-                # Intermediate node - recurse
-                valid_keys.update(get_all_valid_keys(value, full_key))
-
-    return valid_keys
-
-
-def get_key_info_from_schema(key: str) -> dict:
-    """Get key information (type, desc, example) from schema."""
-    parts = key.split(".")
-    schema_node = CONFIG_SCHEMA
-
-    try:
-        for part in parts:
-            if part in schema_node:
-                schema_node = schema_node[part]
-            else:
-                return {}
-
-        # If we found a leaf node with 'type', return it
-        if isinstance(schema_node, dict) and "type" in schema_node:
-            return schema_node
-    except (KeyError, TypeError):
-        pass
-
-    return {}
 
 
 def find_similar_key(invalid_key: str, valid_keys: set[str]) -> str | None:
@@ -286,7 +99,7 @@ def validate_and_fix_keys(db: ConfigDB, auto_fix: bool = False) -> dict[str, str
     Returns:
         Dictionary mapping invalid keys to their suggested replacements
     """
-    valid_keys = get_all_valid_keys(CONFIG_SCHEMA)
+    valid_keys = get_all_keys(CONFIG_SCHEMA)
     all_db_keys = [key for key, _ in db.list_keys("")]
 
     invalid_keys = {}
@@ -320,7 +133,7 @@ def fix_invalid_keys_menu(db: ConfigDB):
     """Interactive menu to fix invalid configuration keys."""
     print_header("Fix Invalid Configuration Keys")
 
-    valid_keys = get_all_valid_keys(CONFIG_SCHEMA)
+    valid_keys = get_all_keys(CONFIG_SCHEMA)
     all_db_keys = [key for key, _ in db.list_keys("")]
 
     invalid_keys = {}
@@ -608,15 +421,237 @@ def delete_value(db: ConfigDB, key: str):
         print(f"Configuration key '{key}' not found")
 
 
+def show_database_status(db: ConfigDB):
+    """Display current database configuration status."""
+    print_header("Database Configuration Status")
+
+    # Get active database type
+    active_db = db.get("database.type")
+
+    db_info = {
+        "influxdb": {
+            "name": "InfluxDB",
+            "keys": ["version", "url", "token", "org", "bucket", "measurement"],
+        },
+        "prometheus": {
+            "name": "Prometheus Pushgateway",
+            "keys": ["pushgateway_url", "job", "instance", "username", "password"],
+        },
+        "timescaledb": {
+            "name": "TimescaleDB (PostgreSQL)",
+            "keys": ["host", "port", "database", "username", "password", "table", "ssl_mode"],
+        },
+        "victoriametrics": {
+            "name": "VictoriaMetrics",
+            "keys": ["url", "username", "password", "tenant"],
+        },
+        "none": {
+            "name": "None (sensor-only mode)",
+            "keys": [],
+        },
+    }
+
+    if not active_db:
+        print("⚠ No database type configured!")
+        print("\nSet 'database.type' to activate a database backend.")
+        return
+
+    if active_db not in db_info:
+        print(f"⚠ Unknown database type: {active_db}")
+        return
+
+    # Display active database
+    info = db_info[active_db]
+    print(f"Active Database: {info['name']}")
+    print(f"Database Type:   database.type = {active_db}")
+    print()
+
+    if active_db == "none":
+        print("Status: No database writes will occur.")
+        print("        Application will collect sensor data only.")
+        return
+
+    # Display configuration for active database
+    print(f"{info['name']} Configuration:")
+    print("-" * 60)
+
+    required_keys = []
+    optional_keys = []
+    missing_keys = []
+
+    for key in info["keys"]:
+        full_key = f"database.{active_db}.{key}"
+        value = db.get(full_key)
+        key_info = get_key_info(full_key)
+        is_required = key_info.get("required", False)
+        is_sensitive = key_info.get("sensitive", False)
+
+        if is_required:
+            if value is None:
+                missing_keys.append(key)
+            else:
+                required_keys.append((key, value, is_sensitive))
+        else:
+            if value is not None:
+                optional_keys.append((key, value, is_sensitive))
+
+    # Display required settings
+    if required_keys or missing_keys:
+        print("\nRequired Settings:")
+        for key, value, is_sensitive in required_keys:
+            display_value = "********" if is_sensitive else value
+            print(f"  ✓ {key:<20} = {display_value}")
+
+        for key in missing_keys:
+            print(f"  ✗ {key:<20} = (NOT SET)")
+
+    # Display optional settings
+    if optional_keys:
+        print("\nOptional Settings:")
+        for key, value, is_sensitive in optional_keys:
+            display_value = "********" if is_sensitive else value
+            print(f"  • {key:<20} = {display_value}")
+
+    # Status summary
+    print("\n" + "-" * 60)
+    if missing_keys:
+        print(f"Status: ⚠ INCOMPLETE - {len(missing_keys)} required setting(s) missing")
+        print(f"\nMissing: {', '.join(missing_keys)}")
+    else:
+        print("Status: ✓ READY - All required settings configured")
+
+    # Show other configured databases
+    print("\n" + "=" * 60)
+    print("Other Database Configurations (inactive):")
+    print("-" * 60)
+
+    other_dbs = [
+        db_type for db_type in db_info.keys() if db_type != active_db and db_type != "none"
+    ]
+    has_other_configs = False
+
+    for db_type in other_dbs:
+        # Check if any keys are set for this database
+        configured_keys = []
+        for key in db_info[db_type]["keys"]:
+            full_key = f"database.{db_type}.{key}"
+            if db.get(full_key) is not None:
+                configured_keys.append(key)
+
+        if configured_keys:
+            has_other_configs = True
+            print(f"\n{db_info[db_type]['name']}: {len(configured_keys)} setting(s) configured")
+            print(f"  Keys: {', '.join(configured_keys)}")
+
+    if not has_other_configs:
+        print("\nNone - No other databases configured")
+        print("You can configure multiple databases and switch between them")
+        print("by changing the 'database.type' setting.")
+
+
+def reset_to_defaults(db: ConfigDB):
+    """Reset all configuration to default values with confirmation."""
+    print_header("Reset Configuration to Defaults")
+    print()
+    print("⚠️  WARNING: This will DELETE ALL existing configuration!")
+    print()
+    print("This action will:")
+    print("  • Delete all current configuration values")
+    print("  • Restore all settings to their default values")
+    print("  • Cannot be undone")
+    print()
+    print("Default values include:")
+    print("  • Database type: none (sensor-only mode)")
+    print("  • All sensors: disabled")
+    print("  • Heating/humidity control: disabled")
+    print("  • Web UI: enabled on 0.0.0.0:5000")
+    print("  • Data collection intervals: 5 seconds")
+    print()
+
+    # First confirmation
+    confirm1 = input("Are you sure you want to reset to defaults? (yes/no): ").strip().lower()
+    if confirm1 != "yes":
+        print("\nReset cancelled.")
+        input("\nPress Enter to continue...")
+        return
+
+    # Second confirmation
+    print()
+    print("⚠️  FINAL WARNING: All configuration will be permanently deleted!")
+    print()
+    confirm2 = input("Type 'DELETE ALL CONFIG' to confirm: ").strip()
+    if confirm2 != "DELETE ALL CONFIG":
+        print("\nReset cancelled.")
+        input("\nPress Enter to continue...")
+        return
+
+    print()
+    print("Deleting all configuration...")
+
+    # Delete all existing configuration
+    all_keys = db.list_keys("")
+    deleted_count = 0
+    for key, _ in all_keys:  # list_keys returns (key, description) tuples
+        try:
+            db.delete(key)
+            deleted_count += 1
+        except Exception as e:
+            print(f"  Warning: Failed to delete {key}: {e}")
+
+    print(f"  Deleted {deleted_count} configuration value(s)")
+    print()
+    print("Restoring default values...")
+    print()
+
+    # Call populate_defaults.py to restore defaults
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    populate_script = os.path.join(script_dir, "populate_defaults.py")
+
+    # Get database path and encryption key from the ConfigDB instance
+    db_path = db.db_path
+    encryption_key = db.encryption_key
+
+    try:
+        # Run populate_defaults.py
+        result = subprocess.run(
+            [sys.executable, populate_script, "--db", db_path, "--key", encryption_key],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        # Show output
+        print(result.stdout)
+
+        print("✓ Configuration reset to defaults successfully!")
+        print()
+        print("All settings have been restored to their default values.")
+        print("You can now configure the application for your environment.")
+
+    except subprocess.CalledProcessError as e:
+        print(f"\n⚠️  Error restoring defaults: {e}")
+        if e.stderr:
+            print(f"Error details: {e.stderr}")
+        print("\nThe database may be in an inconsistent state.")
+        print("Please run setup.sh again or manually configure settings.")
+    except Exception as e:
+        print(f"\n⚠️  Unexpected error: {e}")
+        print("\nThe database may be in an inconsistent state.")
+
+    input("\nPress Enter to continue...")
+
+
 def interactive_menu(db: ConfigDB):
     """Interactive configuration menu with letter-based commands."""
     while True:
         print_header("FilamentBox Configuration Manager")
         print("B - Browse and edit configuration")
         print("N - Add new configuration value")
+        print("D - Database status and configuration")
         print("S - Search for a configuration key")
         print("V - View all configuration")
         print("F - Fix invalid configuration keys")
+        print("R - Reset to defaults (⚠️  deletes all config)")
         print("Q - Quit")
         print()
 
@@ -626,6 +661,9 @@ def interactive_menu(db: ConfigDB):
             browse_and_edit_menu(db)
         elif choice == "N":
             add_new_value(db)
+        elif choice == "D":
+            show_database_status(db)
+            input("\nPress Enter to continue...")
         elif choice == "S":
             search_config(db)
         elif choice == "V":
@@ -633,11 +671,13 @@ def interactive_menu(db: ConfigDB):
             input("\nPress Enter to continue...")
         elif choice == "F":
             fix_invalid_keys_menu(db)
+        elif choice == "R":
+            reset_to_defaults(db)
         elif choice == "Q":
             print("\nGoodbye!")
             break
         else:
-            print("Invalid option. Please select B, N, S, V, F, or Q.")
+            print("Invalid option. Please select B, N, D, S, V, F, R, or Q.")
             input("\nPress Enter to continue...")
 
 
@@ -650,6 +690,21 @@ def browse_and_edit_menu(db: ConfigDB):
             print("\nNo configuration found.")
             input("\nPress Enter to continue...")
             return
+
+        # Display active database at the top
+        print_header("Configuration Sections")
+        active_db = db.get("database.type")
+        if active_db:
+            db_names = {
+                "influxdb": "InfluxDB",
+                "prometheus": "Prometheus",
+                "timescaledb": "TimescaleDB",
+                "victoriametrics": "VictoriaMetrics",
+                "none": "None (sensor-only mode)",
+            }
+            db_name = db_names.get(active_db, active_db)
+            print(f"Active Database: {db_name}")
+            print()
 
         sections = {}
         for key, desc in all_keys:
@@ -690,6 +745,26 @@ def edit_section_menu(db: ConfigDB, section: str, keys: list):
     while True:
         print_header(f"{section.upper()} Configuration")
 
+        # Show active database info for database section
+        if section == "database":
+            active_db = db.get("database.type")
+            if active_db and active_db != "none":
+                db_names = {
+                    "influxdb": "InfluxDB",
+                    "prometheus": "Prometheus",
+                    "timescaledb": "TimescaleDB",
+                    "victoriametrics": "VictoriaMetrics",
+                }
+                db_name = db_names.get(active_db, active_db)
+                print(f"Active Database: {db_name}")
+                print(f"Note: Only {db_name} settings will be used.")
+                print("      Other database configurations are stored but inactive.")
+                print()
+            elif active_db == "none":
+                print("Active Database: None (sensor-only mode)")
+                print("Note: No database writes will occur. Data collection only.")
+                print()
+
         # Display keys with current values
         for i, (key, desc) in enumerate(keys, 1):
             value = db.get(key)
@@ -704,7 +779,17 @@ def edit_section_menu(db: ConfigDB, section: str, keys: list):
 
             # Show simplified key (remove section prefix for clarity)
             simple_key = key.replace(f"{section}.", "", 1)
-            print(f"{i}. {simple_key:<35} = {display_value}")
+
+            # Mark keys that belong to inactive databases
+            marker = ""
+            if section == "database" and "." in simple_key:
+                db_prefix = simple_key.split(".")[0]
+                active_db = db.get("database.type")
+                if db_prefix in ["influxdb", "prometheus", "timescaledb", "victoriametrics"]:
+                    if db_prefix != active_db:
+                        marker = " [inactive]"
+
+            print(f"{i}. {simple_key:<35} = {display_value}{marker}")
             if desc:
                 print(f"   {'':<35}   {desc}")
 
@@ -737,13 +822,30 @@ def get_menu_options_for_key(key: str) -> list[tuple[str, str]] | None:
     # Database type selection
     if key == "database.type":
         return [
-            ("influxdb", "InfluxDB 1.x (username/password)"),
-            ("influxdb2", "InfluxDB 2.x (token/bucket/org)"),
-            ("influxdb3", "InfluxDB 3.x (cloud/serverless)"),
+            ("influxdb", "InfluxDB (v1/v2/v3)"),
             ("prometheus", "Prometheus Pushgateway"),
             ("timescaledb", "TimescaleDB (PostgreSQL)"),
             ("victoriametrics", "VictoriaMetrics"),
-            ("none", "No database (sensor only mode)"),
+            ("none", "No database (sensor-only mode)"),
+        ]
+
+    # InfluxDB version selection
+    if key == "database.influxdb.version":
+        return [
+            ("1", "InfluxDB 1.x (username/password)"),
+            ("2", "InfluxDB 2.x (token/bucket/org)"),
+            ("3", "InfluxDB 3.x (cloud/serverless)"),
+        ]
+
+    # TimescaleDB SSL mode (must come before general SSL pattern)
+    if key == "database.timescaledb.ssl_mode":
+        return [
+            ("disable", "Disable SSL"),
+            ("allow", "Allow SSL (try SSL, fallback to non-SSL)"),
+            ("prefer", "Prefer SSL (try SSL first)"),
+            ("require", "Require SSL"),
+            ("verify-ca", "Verify CA certificate"),
+            ("verify-full", "Verify CA and hostname"),
         ]
 
     # Sensor type selection
@@ -758,17 +860,6 @@ def get_menu_options_for_key(key: str) -> list[tuple[str, str]] | None:
         return [
             ("true", "Enabled / Yes"),
             ("false", "Disabled / No"),
-        ]
-
-    # TimescaleDB SSL mode
-    if key == "timescaledb.ssl_mode":
-        return [
-            ("disable", "Disable SSL"),
-            ("allow", "Allow SSL (try SSL, fallback to non-SSL)"),
-            ("prefer", "Prefer SSL (try SSL first)"),
-            ("require", "Require SSL"),
-            ("verify-ca", "Verify CA certificate"),
-            ("verify-full", "Verify CA and hostname"),
         ]
 
     return None
@@ -981,7 +1072,7 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
             print(f"Description: {description}\n")
 
         # Get example from schema
-        key_info = get_key_info_from_schema(key)
+        key_info = get_key_info(key)
         example = key_info.get("example")
         if example:
             print(f"Example: {example}\n")
@@ -1052,7 +1143,15 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
                     except ValueError:
                         pass  # keep as string
 
-            db.set(key, new_value, description)
+            # Validate the value
+            key_info = get_key_info(key)
+            is_valid, error_msg, converted_value = validate_value(key, new_value, key_info)
+            if not is_valid:
+                print(f"\n✗ Validation error: {error_msg}")
+                input("\nPress Enter to continue...")
+                continue
+
+            db.set(key, converted_value, description)
             print(f"\n✓ Updated {key}")
             input("\nPress Enter to continue...")
             return
@@ -1253,9 +1352,16 @@ def add_new_value(db: ConfigDB):
             input("\nPress Enter to continue...")
             return
 
-    # Save the value
-    db.set(full_key, value, key_info.get("desc", ""))
-    print(f"\n✓ Set {full_key} = {value if not is_sensitive else '********'}")
+    # Validate the value
+    is_valid, error_msg, converted_value = validate_value(full_key, value, key_info)
+    if not is_valid:
+        print(f"\n✗ Validation error: {error_msg}")
+        input("\nPress Enter to continue...")
+        return
+
+    # Save the validated and converted value
+    db.set(full_key, converted_value, key_info.get("desc", ""))
+    print(f"\n✓ Set {full_key} = {converted_value if not is_sensitive else '********'}")
     input("\nPress Enter to continue...")
 
 

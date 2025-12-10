@@ -12,9 +12,10 @@ def create_database_adapter(db_type: str, config: dict[str, Any]) -> TimeSeriesD
     """Create and return the appropriate database adapter.
 
     Args:
-        db_type: Type of database ('influxdb', 'influxdb2', 'influxdb3', 'prometheus',
-                                    'timescaledb', 'victoriametrics', or 'none')
-        config: Database-specific configuration dictionary
+        db_type: Type of database ('influxdb', 'prometheus', 'timescaledb',
+                                    'victoriametrics', or 'none')
+        config: Database-specific configuration dictionary. For InfluxDB, must include
+                'version' key ('1', '2', or '3') to select the appropriate adapter.
 
     Returns:
         TimeSeriesDB: Initialized database adapter instance
@@ -31,19 +32,23 @@ def create_database_adapter(db_type: str, config: dict[str, Any]) -> TimeSeriesD
         return NoneAdapter(config)
 
     if db_type == "influxdb":
-        from .influxdb_adapter import InfluxDBAdapter
+        # Use version from config to select the appropriate InfluxDB adapter
+        version = config.get("version", "2")
 
-        return InfluxDBAdapter(config)
+        if version == "1":
+            from .influxdb_adapter import InfluxDBAdapter
 
-    if db_type == "influxdb2":
-        from .influxdb2_adapter import InfluxDB2Adapter
+            return InfluxDBAdapter(config)
+        elif version == "2":
+            from .influxdb2_adapter import InfluxDB2Adapter
 
-        return InfluxDB2Adapter(config)
+            return InfluxDB2Adapter(config)
+        elif version == "3":
+            from .influxdb3_adapter import InfluxDB3Adapter
 
-    if db_type == "influxdb3":
-        from .influxdb3_adapter import InfluxDB3Adapter
-
-        return InfluxDB3Adapter(config)
+            return InfluxDB3Adapter(config)
+        else:
+            raise ValueError(f"Unknown InfluxDB version: {version}. Supported versions: 1, 2, 3")
 
     if db_type == "prometheus":
         from .prometheus_adapter import PrometheusAdapter
