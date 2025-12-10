@@ -563,10 +563,6 @@ EOF
         echo -e "${CYAN}  Key file: $KEY_FILE${NC}"
     fi
     echo ""
-    echo -e "${YELLOW}To install the services, run:${NC}"
-    echo -e "${CYAN}  sudo ./install/install_service.sh${NC}"
-    echo -e "${CYAN}  sudo ./install/install_webui_service.sh${NC}"
-    echo ""
 }
 
 # Function to launch interactive config tool
