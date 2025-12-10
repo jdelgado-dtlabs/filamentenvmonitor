@@ -1095,7 +1095,7 @@ def edit_tags_menu(db: ConfigDB, base_key: str = "data_collection.tags"):
 def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
     """Edit a single configuration value."""
     # Special handling for tags
-    if key == "data_collection.tags" or key == "database.influxdb.tags":
+    if key == "database.influxdb.tags":
         # For dict-based tags, use submenu with individual tag management
         import json
 
