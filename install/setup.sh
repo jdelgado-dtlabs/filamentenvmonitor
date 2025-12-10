@@ -104,10 +104,6 @@ if [ "$LEGACY_FILES_EXIST" = true ]; then
     echo ""
     
     # Prompt for encryption key setup
-    echo -e "${BLUE}========================================${NC}"
-    echo -e "${BLUE}Encryption Key Setup${NC}"
-    echo -e "${BLUE}========================================${NC}"
-    
     prompt_encryption_key
     
     # Ensure pysqlcipher3 is installed
@@ -191,10 +187,6 @@ echo ""
 # Ensure pysqlcipher3 is installed
 ensure_pysqlcipher3
 
-echo -e "${BLUE}========================================${NC}"
-echo -e "${BLUE}Encryption Key Setup${NC}"
-echo -e "${BLUE}========================================${NC}"
-
 # Prompt for encryption key
 prompt_encryption_key
 
@@ -234,50 +226,50 @@ ask_yes_no() {
     fi
 }
 
+# Function to generate a strong encryption key
+generate_encryption_key() {
+    # Generate a 64-character random key using /dev/urandom
+    # Uses base64 encoding for URL-safe characters
+    ENCRYPTION_KEY=$(head -c 48 /dev/urandom | base64 | tr -d '\n' | tr -d '=' | head -c 64)
+}
+
 # Function to prompt for encryption key
 prompt_encryption_key() {
     echo ""
-    echo -e "${YELLOW}You need to create a strong encryption key for your configuration database.${NC}"
-    echo -e "${YELLOW}This key will be used to encrypt/decrypt your configuration.${NC}"
+    echo -e "${YELLOW}========================================${NC}"
+    echo -e "${YELLOW}Encryption Key Setup${NC}"
+    echo -e "${YELLOW}========================================${NC}"
     echo ""
-    echo -e "${RED}IMPORTANT:${NC}"
-    echo -e "${RED}  - Choose a strong, unique key (32+ characters recommended)${NC}"
-    echo -e "${RED}  - Store this key securely - you'll need it to access your config${NC}"
+    echo -e "${CYAN}A strong encryption key is required for your configuration database.${NC}"
+    echo -e "${CYAN}This key will be used to encrypt/decrypt your configuration.${NC}"
+    echo ""
+    
+    # Generate a strong random key
+    generate_encryption_key
+    
+    echo -e "${GREEN}Auto-generated encryption key (64 characters):${NC}"
+    echo ""
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${YELLOW}$ENCRYPTION_KEY${NC}"
+    echo -e "${BLUE}========================================${NC}"
+    echo ""
+    echo -e "${RED}CRITICAL - SAVE THIS KEY NOW!${NC}"
+    echo ""
+    echo -e "${YELLOW}Action items:${NC}"
+    echo -e "  1. ${RED}Copy the key above to a secure location${NC}"
+    echo -e "  2. Store it in a password manager or encrypted vault"
+    echo -e "  3. You'll need this key if you ever need to recover"
+    echo ""
+    echo -e "${RED}WARNING:${NC}"
     echo -e "${RED}  - If you lose this key, you CANNOT recover your configuration${NC}"
+    echo -e "${RED}  - The key will be saved to $KEY_FILE${NC}"
+    echo -e "${RED}  - Keep backups of both the key file and the key itself${NC}"
     echo ""
     
-    while true; do
-        read -s -p "Enter encryption key: " ENCRYPTION_KEY
-        echo ""
-        
-        if [ -z "$ENCRYPTION_KEY" ]; then
-            echo -e "${RED}Encryption key cannot be empty. Please try again.${NC}"
-            echo ""
-            continue
-        fi
-        
-        if [ ${#ENCRYPTION_KEY} -lt 16 ]; then
-            echo -e "${YELLOW}Warning: Key is short (${#ENCRYPTION_KEY} chars). Recommend 32+ characters.${NC}"
-            if ! ask_yes_no "Use this key anyway?" "N"; then
-                echo ""
-                continue
-            fi
-        fi
-        
-        read -s -p "Confirm encryption key: " ENCRYPTION_KEY_CONFIRM
-        echo ""
-        
-        if [ "$ENCRYPTION_KEY" != "$ENCRYPTION_KEY_CONFIRM" ]; then
-            echo -e "${RED}Keys don't match. Please try again.${NC}"
-            echo ""
-            continue
-        fi
-        
-        break
-    done
-    
+    # Wait for user confirmation
+    read -p "Press ENTER after you have saved the key to continue..."
     echo ""
-    echo -e "${GREEN}Encryption key set successfully.${NC}"
+    echo -e "${GREEN}Continuing with setup...${NC}"
     echo ""
     
     # Export the key for use by migration/config scripts

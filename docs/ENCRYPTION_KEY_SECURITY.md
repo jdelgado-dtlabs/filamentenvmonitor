@@ -2,7 +2,18 @@
 
 ## Overview
 
-FilamentBox v2.0+ uses encrypted configuration with SQLCipher. The encryption key is stored securely and can be accessed by the application in multiple ways.
+FilamentBox v2.0+ uses encrypted configuration with SQLCipher. The encryption key is automatically generated during setup and stored securely.
+
+## Key Generation
+
+During initial setup, the `install/setup.sh` script automatically generates a strong 64-character random encryption key using `/dev/urandom`. The key is:
+- Cryptographically secure random data
+- Base64 encoded for safe storage
+- 64 characters long (384 bits of entropy)
+- Displayed on screen for you to copy and backup
+- Saved to `.config_key` file with restrictive permissions
+
+**IMPORTANT:** When the key is displayed during setup, copy it to a secure location (password manager, encrypted vault) before continuing.
 
 ## Key Storage Location
 
