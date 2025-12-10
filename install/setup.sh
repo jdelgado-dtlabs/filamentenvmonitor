@@ -624,7 +624,10 @@ if [ -f "$CONFIG_DB" ]; then
             echo -e "${CYAN}Starting configuration tool...${NC}"
             echo ""
             cd "$INSTALL_ROOT"
-            "$INSTALL_ROOT/filamentcontrol/bin/python" scripts/config_tool.py --interactive
+            FILAMENTBOX_CONFIG_KEY="$FILAMENTBOX_CONFIG_KEY" \
+                "$INSTALL_ROOT/filamentcontrol/bin/python" scripts/config_tool.py \
+                --db "$CONFIG_DB" \
+                --interactive
             exit 0
             ;;
         2)
