@@ -1154,10 +1154,9 @@ sudo usermod -a -G gpio $USER
 curl http://192.168.1.10:8086/ping
 
 # Verify configuration
-cat config.yaml | grep -A 5 influxdb
-
-# Check environment variables
-cat .env
+python scripts/config_tool.py --get database.influxdb_v1.host
+python scripts/config_tool.py --get database.influxdb_v1.port
+python scripts/config_tool.py --get database.influxdb_v1.database
 
 # Test connection manually
 python -c "import requests; print(requests.get('http://192.168.1.10:8086/ping'))"
@@ -1204,10 +1203,11 @@ python -m filamentbox.main --debug
 ```
 
 **Common causes**:
-- Missing config.yaml file
-- Invalid YAML syntax
+- Missing config database (filamentbox.db)
+- Missing encryption key (.config_key or Vault unavailable)
 - Python dependencies not installed
 - Incorrect file paths in service file
+- Database connection failures
 
 #### Service Keeps Restarting
 
@@ -1294,14 +1294,15 @@ i2cdetect -y 1
 
 **Solutions**:
 ```bash
-# Verify GPIO pin number in config.yaml
+# Verify GPIO pin number in encrypted config
 # Must use BCM numbering, not physical pin numbers
+python scripts/config_tool.py --get sensor.gpio_pin
 
 # Check wiring
 # Ensure 10kohm pull-up resistor between DATA and VCC
 
 # Try different GPIO pin
-# Edit config.yaml and change sensor.gpio_pin
+python scripts/config_tool.py --set sensor.gpio_pin 17
 
 # Test sensor with simple script
 python -c "
@@ -1342,10 +1343,11 @@ python -m filamentbox.main --debug
 ```
 
 **Solutions**:
-- Verify InfluxDB credentials in config.yaml or .env
-- Check database exists: `influx -execute 'SHOW DATABASES'`
-- Verify network connectivity to InfluxDB server
-- Check for write permission errors in InfluxDB logs
+- Verify database credentials using config tool
+- Check database exists (for InfluxDB: `influx -execute 'SHOW DATABASES'`)
+- Verify network connectivity to database server
+- Check for write permission errors in database logs
+- Verify encryption key is loaded (check .config_key or Vault)
 
 #### Old Data Not Recovered
 
@@ -1366,9 +1368,9 @@ python -m filamentbox.main --debug
 ```
 
 **Solutions**:
-- Verify persistence.db_path in config.yaml
+- Verify persistence.db_path using config tool
 - Check file permissions on unsent_batches.db
-- Ensure InfluxDB is accessible before starting service
+- Ensure database is accessible before starting service
 
 ### Control Issues
 
@@ -1379,8 +1381,8 @@ python -m filamentbox.main --debug
 **Diagnosis**:
 ```bash
 # Check control configuration
-cat config.yaml | grep -A 7 heating_control
-cat config.yaml | grep -A 7 humidity_control
+python scripts/config_tool.py --get heating_control
+python scripts/config_tool.py --get humidity_control
 
 # Monitor control decisions
 sudo journalctl -u filamentbox.service -f | grep -i "heater\|fan"
@@ -1397,7 +1399,7 @@ relay.off()
 ```
 
 **Solutions**:
-- Verify control is enabled in config.yaml
+- Verify control is enabled: `python scripts/config_tool.py --get heating_control.enabled`
 - Check GPIO pin numbers (BCM numbering)
 - Test relay module with external power
 - Verify relay module is compatible (active high/low)
@@ -1408,22 +1410,20 @@ relay.off()
 **Problem**: Heater or fan switches on/off rapidly
 
 **Solutions**:
-```yaml
-# Increase hysteresis gap in config.yaml
-heating_control:
-  min_temp_c: 18.0   # Increase gap to 4-5C
-  max_temp_c: 23.0   # Was 22.0
+```bash
+# Increase hysteresis gap using config tool
+python scripts/config_tool.py --set heating_control.min_temp_c 18.0
+python scripts/config_tool.py --set heating_control.max_temp_c 23.0
 
-humidity_control:
-  min_humidity: 35.0  # Increase gap to 20-25%
-  max_humidity: 60.0  # Was 60.0
+python scripts/config_tool.py --set humidity_control.min_humidity 35.0
+python scripts/config_tool.py --set humidity_control.max_humidity 60.0
 
-# Increase check interval
-heating_control:
-  check_interval: 30  # Was 10 seconds
+# Increase check interval (seconds)
+python scripts/config_tool.py --set heating_control.check_interval 30
+python scripts/config_tool.py --set humidity_control.check_interval 30
 
-humidity_control:
-  check_interval: 30  # Was 10 seconds
+# Restart service to apply changes
+sudo systemctl restart filamentbox.service
 ```
 
 ### Debugging Tools
@@ -1524,15 +1524,20 @@ To keep configuration for future reinstallation:
 ```bash
 # Backup configuration and data
 mkdir -p ~/filamentbox-backup
-cp /opt/filamentcontrol/config.yaml ~/filamentbox-backup/
-cp /opt/filamentcontrol/.env ~/filamentbox-backup/ 2>/dev/null
+cp /opt/filamentcontrol/filamentbox.db ~/filamentbox-backup/
+cp /opt/filamentcontrol/.config_key ~/filamentbox-backup/
 cp /opt/filamentcontrol/unsent_batches.db ~/filamentbox-backup/ 2>/dev/null
+
+# Backup Vault configuration if used
+cp /opt/filamentcontrol/vault_config.json ~/filamentbox-backup/ 2>/dev/null
 
 # Then proceed with removal
 # ...
 
 # Restore later
-sudo cp ~/filamentbox-backup/* /opt/filamentcontrol/
+sudo cp ~/filamentbox-backup/filamentbox.db /opt/filamentcontrol/
+sudo cp ~/filamentbox-backup/.config_key /opt/filamentcontrol/
+sudo chmod 600 /opt/filamentcontrol/.config_key
 ```
 
 ### Partial Removal
@@ -1584,15 +1589,19 @@ sudo systemctl status filamentbox.service
 ```bash
 # Installation
 sudo ./install/install.sh                    # Master installer
+sudo ./install/setup.sh                      # Configuration setup
 
 # Service management
 sudo systemctl status filamentbox.service    # Check status
 sudo systemctl restart filamentbox.service   # Restart service
 sudo journalctl -u filamentbox.service -f    # View logs
 
-# Configuration
-nano /opt/filamentcontrol/config.yaml        # Edit config
-nano /opt/filamentcontrol/.env               # Edit environment variables
+# Configuration management
+source /opt/filamentcontrol/filamentcontrol/bin/activate
+python scripts/config_tool.py --interactive  # Interactive config
+python scripts/config_tool.py --list         # View all config
+python scripts/config_tool.py --get key      # Get value
+python scripts/config_tool.py --set key val  # Set value
 
 # Manual testing
 source /opt/filamentcontrol/filamentcontrol/bin/activate
