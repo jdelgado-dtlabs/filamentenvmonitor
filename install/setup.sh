@@ -147,16 +147,23 @@ if [ "$LEGACY_FILES_EXIST" = true ]; then
         # Save encryption key to secure file
         save_encryption_key
         
-        echo -e "${YELLOW}IMPORTANT - Encryption Key Security:${NC}"
+        echo -e "${YELLOW}IMPORTANT - Encryption Key Access:${NC}"
         echo ""
-        echo -e "${GREEN}Encryption key saved to:${NC}"
-        echo -e "${GREEN}  $KEY_FILE${NC}"
-        echo -e "${GREEN}  (Permissions: 600 - owner read/write only)${NC}"
+        if check_vault_available; then
+            echo -e "${GREEN}Primary: HashiCorp Vault${NC}"
+            echo -e "${GREEN}  The application will retrieve the key from Vault${NC}"
+            echo ""
+            echo -e "${GREEN}Backup: Local file${NC}"
+            echo -e "${GREEN}  $KEY_FILE (if Vault is unavailable)${NC}"
+        else
+            echo -e "${GREEN}Key storage: Local file${NC}"
+            echo -e "${GREEN}  $KEY_FILE${NC}"
+            echo -e "${GREEN}  (Permissions: 600 - owner read/write only)${NC}"
+            echo ""
+            echo -e "${CYAN}For enhanced security, consider using HashiCorp Vault${NC}"
+        fi
         echo ""
-        echo -e "${YELLOW}The application will automatically use this key file.${NC}"
-        echo ""
-        echo -e "${YELLOW}For additional security, you can also set environment variable:${NC}"
-        echo -e "${CYAN}  export FILAMENTBOX_CONFIG_KEY='$ENCRYPTION_KEY'${NC}"
+        echo -e "${YELLOW}The application will automatically load the key.${NC}"
         echo ""
         echo -e "${CYAN}You can now manage your configuration using:${NC}"
         echo -e "${CYAN}  python scripts/config_tool.py --interactive${NC}"
@@ -193,16 +200,23 @@ prompt_encryption_key
 # Save encryption key to secure file
 save_encryption_key
 
-echo -e "${YELLOW}IMPORTANT - Encryption Key Security:${NC}"
+echo -e "${YELLOW}IMPORTANT - Encryption Key Access:${NC}"
 echo ""
-echo -e "${GREEN}Encryption key saved to:${NC}"
-echo -e "${GREEN}  $KEY_FILE${NC}"
-echo -e "${GREEN}  (Permissions: 600 - owner read/write only)${NC}"
+if check_vault_available; then
+    echo -e "${GREEN}Primary: HashiCorp Vault${NC}"
+    echo -e "${GREEN}  The application will retrieve the key from Vault${NC}"
+    echo ""
+    echo -e "${GREEN}Backup: Local file${NC}"
+    echo -e "${GREEN}  $KEY_FILE (if Vault is unavailable)${NC}"
+else
+    echo -e "${GREEN}Key storage: Local file${NC}"
+    echo -e "${GREEN}  $KEY_FILE${NC}"
+    echo -e "${GREEN}  (Permissions: 600 - owner read/write only)${NC}"
+    echo ""
+    echo -e "${CYAN}For enhanced security, consider using HashiCorp Vault${NC}"
+fi
 echo ""
-echo -e "${YELLOW}The application will automatically use this key file.${NC}"
-echo ""
-echo -e "${YELLOW}For additional security, you can also set environment variable:${NC}"
-echo -e "${CYAN}  export FILAMENTBOX_CONFIG_KEY='$ENCRYPTION_KEY'${NC}"
+echo -e "${YELLOW}The application will automatically load the key.${NC}"
 echo ""
 
 # Use config_tool.py for interactive setup
@@ -290,9 +304,76 @@ ensure_pysqlcipher3() {
     echo ""
 }
 
+# Function to check if Vault is available and configured
+check_vault_available() {
+    # Check if hvac (Vault Python library) is installed
+    if ! python -c "import hvac" 2>/dev/null; then
+        return 1
+    fi
+    
+    # Check if VAULT_ADDR is set
+    if [ -z "$VAULT_ADDR" ]; then
+        return 1
+    fi
+    
+    # Check if authentication is configured (token or approle)
+    if [ -n "$VAULT_TOKEN" ] || ([ -n "$VAULT_ROLE_ID" ] && [ -n "$VAULT_SECRET_ID" ]); then
+        return 0
+    fi
+    
+    return 1
+}
+
+# Function to save encryption key to HashiCorp Vault
+save_key_to_vault() {
+    echo -e "${CYAN}Attempting to save key to HashiCorp Vault...${NC}"
+    
+    # Use Python to save to Vault
+    python - <<EOF
+import sys
+import os
+import logging
+
+logging.basicConfig(level=logging.INFO)
+
+# Set the encryption key in environment for the save function
+os.environ['FILAMENTBOX_TEMP_KEY'] = '$ENCRYPTION_KEY'
+
+# Import the vault save function
+sys.path.insert(0, '$INSTALL_ROOT')
+from filamentbox.config_db import _save_key_to_vault
+
+# Attempt to save
+if _save_key_to_vault(os.environ['FILAMENTBOX_TEMP_KEY']):
+    sys.exit(0)
+else:
+    sys.exit(1)
+EOF
+    
+    return $?
+}
+
 # Function to save encryption key to secure file
 save_encryption_key() {
-    echo -e "${CYAN}Saving encryption key to secure storage...${NC}"
+    local vault_saved=false
+    
+    # Check if Vault is available
+    if check_vault_available; then
+        echo -e "${CYAN}HashiCorp Vault detected.${NC}"
+        echo ""
+        
+        if save_key_to_vault; then
+            echo -e "${GREEN}✓ Encryption key saved to HashiCorp Vault${NC}"
+            echo -e "${GREEN}  Path: secret/data/filamentbox/config_key${NC}"
+            vault_saved=true
+        else
+            echo -e "${YELLOW}⚠ Failed to save to Vault, falling back to local file${NC}"
+        fi
+        echo ""
+    fi
+    
+    # Always save to local file as backup/fallback
+    echo -e "${CYAN}Saving encryption key to local file...${NC}"
     
     # Write key to file
     echo "$ENCRYPTION_KEY" > "$KEY_FILE"
@@ -300,7 +381,15 @@ save_encryption_key() {
     # Set restrictive permissions (owner read/write only)
     chmod 600 "$KEY_FILE"
     
-    echo -e "${GREEN}Encryption key saved securely.${NC}"
+    if [ "$vault_saved" = true ]; then
+        echo -e "${GREEN}✓ Encryption key also saved to local file (backup)${NC}"
+        echo -e "${GREEN}  Path: $KEY_FILE${NC}"
+        echo -e "${GREEN}  Permissions: 600 (owner read/write only)${NC}"
+    else
+        echo -e "${GREEN}✓ Encryption key saved to local file${NC}"
+        echo -e "${GREEN}  Path: $KEY_FILE${NC}"
+        echo -e "${GREEN}  Permissions: 600 (owner read/write only)${NC}"
+    fi
     echo ""
 }
 

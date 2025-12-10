@@ -14,6 +14,11 @@ try:
 except ImportError:
     sqlcipher = None
 
+try:
+    import hvac
+except ImportError:
+    hvac = None
+
 # Configuration database path
 CONFIG_DB_PATH = os.path.join(os.path.dirname(__file__), "..", "config.db")
 
@@ -23,23 +28,144 @@ CONFIG_DB_KEY_FILE = os.path.join(os.path.dirname(__file__), "..", ".config_key"
 # Encryption key environment variable
 CONFIG_DB_KEY_ENV = "FILAMENTBOX_CONFIG_KEY"
 
+# HashiCorp Vault configuration
+VAULT_ADDR_ENV = "VAULT_ADDR"
+VAULT_TOKEN_ENV = "VAULT_TOKEN"
+VAULT_ROLE_ID_ENV = "VAULT_ROLE_ID"
+VAULT_SECRET_ID_ENV = "VAULT_SECRET_ID"
+VAULT_NAMESPACE_ENV = "VAULT_NAMESPACE"
+VAULT_KEY_PATH = "secret/data/filamentbox/config_key"  # KV v2 path
+
 # Default encryption key (MUST be changed in production)
 DEFAULT_ENCRYPTION_KEY = "CHANGE_ME_IN_PRODUCTION_USE_STRONG_KEY"
 
 
+def _get_vault_client() -> Optional[Any]:
+    """Initialize and authenticate HashiCorp Vault client.
+
+    Supports authentication methods:
+    1. Token authentication (VAULT_TOKEN)
+    2. AppRole authentication (VAULT_ROLE_ID + VAULT_SECRET_ID)
+
+    Returns:
+        Authenticated hvac.Client or None if Vault is not available/configured
+    """
+    if hvac is None:
+        return None
+
+    vault_addr = os.environ.get(VAULT_ADDR_ENV)
+    if not vault_addr:
+        return None
+
+    try:
+        client = hvac.Client(url=vault_addr)
+
+        # Set namespace if provided (Vault Enterprise feature)
+        namespace = os.environ.get(VAULT_NAMESPACE_ENV)
+        if namespace:
+            client.namespace = namespace
+
+        # Try token authentication first
+        vault_token = os.environ.get(VAULT_TOKEN_ENV)
+        if vault_token:
+            client.token = vault_token
+            if client.is_authenticated():
+                logging.info("Vault: Authenticated using token")
+                return client
+
+        # Try AppRole authentication
+        role_id = os.environ.get(VAULT_ROLE_ID_ENV)
+        secret_id = os.environ.get(VAULT_SECRET_ID_ENV)
+        if role_id and secret_id:
+            auth_response = client.auth.approle.login(role_id=role_id, secret_id=secret_id)
+            client.token = auth_response["auth"]["client_token"]
+            if client.is_authenticated():
+                logging.info("Vault: Authenticated using AppRole")
+                return client
+
+        logging.warning("Vault: No valid authentication method found")
+        return None
+
+    except Exception as e:
+        logging.warning(f"Vault: Failed to initialize client: {e}")
+        return None
+
+
+def _load_key_from_vault() -> Optional[str]:
+    """Load encryption key from HashiCorp Vault.
+
+    Returns:
+        Encryption key string or None if not available
+    """
+    client = _get_vault_client()
+    if not client:
+        return None
+
+    try:
+        # Read secret from KV v2 engine
+        secret_response = client.secrets.kv.v2.read_secret_version(
+            path="filamentbox/config_key", mount_point="secret"
+        )
+
+        key = secret_response["data"]["data"].get("key")
+        if key:
+            logging.info("Vault: Successfully retrieved encryption key")
+            return key
+        else:
+            logging.warning("Vault: Key not found in secret data")
+            return None
+
+    except Exception as e:
+        logging.warning(f"Vault: Failed to read encryption key: {e}")
+        return None
+
+
+def _save_key_to_vault(key: str) -> bool:
+    """Save encryption key to HashiCorp Vault.
+
+    Args:
+        key: Encryption key to save
+
+    Returns:
+        True if successful, False otherwise
+    """
+    client = _get_vault_client()
+    if not client:
+        return False
+
+    try:
+        # Write secret to KV v2 engine
+        client.secrets.kv.v2.create_or_update_secret(
+            path="filamentbox/config_key", secret={"key": key}, mount_point="secret"
+        )
+        logging.info("Vault: Successfully saved encryption key")
+        return True
+
+    except Exception as e:
+        logging.error(f"Vault: Failed to save encryption key: {e}")
+        return False
+
+
 def _load_encryption_key() -> str:
-    """Load encryption key from environment variable or key file.
+    """Load encryption key from available sources.
 
     Priority:
     1. FILAMENTBOX_CONFIG_KEY environment variable
-    2. .config_key file in application root
-    3. Default key (with warning)
+    2. HashiCorp Vault (if configured)
+    3. .config_key file in application root
+    4. Default key (with warning)
 
     Returns:
         Encryption key string
     """
     # Try environment variable first
     key = os.environ.get(CONFIG_DB_KEY_ENV)
+    if key:
+        logging.info("Using encryption key from environment variable")
+        return key
+
+    # Try HashiCorp Vault
+    key = _load_key_from_vault()
     if key:
         return key
 
@@ -49,11 +175,13 @@ def _load_encryption_key() -> str:
             with open(CONFIG_DB_KEY_FILE, "r") as f:
                 key = f.read().strip()
                 if key:
+                    logging.info("Using encryption key from local file")
                     return key
         except Exception as e:
             logging.warning(f"Failed to read key file {CONFIG_DB_KEY_FILE}: {e}")
 
     # Fall back to default (with warning)
+    logging.warning("Using default encryption key - not suitable for production!")
     return DEFAULT_ENCRYPTION_KEY
 
 

@@ -10,6 +10,13 @@ python-dateutil==2.9.0.post0
 requests==2.32.5
 python-dotenv==1.0.0
 
+# Encrypted configuration dependencies (v2.0+)
+pysqlcipher3==1.2.0
+
+# Optional: HashiCorp Vault integration
+# Uncomment to enable Vault support for encryption key storage
+# hvac>=2.0.0
+
 # Web UI dependencies
 Flask==3.1.0
 Flask-CORS==5.0.0
