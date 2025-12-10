@@ -134,3 +134,37 @@ def load_and_flush_persisted_batches(db_adapter) -> Tuple[int, int]:
     except Exception:
         logging.exception("Failed to load persisted batches for flushing")
     return success_count, failure_count
+
+
+def recover_persisted_batches() -> None:
+    """Recover and flush persisted batches from previous runs.
+
+    This function handles the complete persistence recovery workflow:
+    - Loads database configuration
+    - Creates appropriate database adapter
+    - Flushes persisted batches
+    - Closes database connection
+    - Skips recovery if data collection is disabled or database type is 'none'
+    """
+    from .config import get
+    from .databases import create_database_adapter
+    from .database_writer import get_database_config
+
+    try:
+        logging.info("Loading persisted batches from previous runs...")
+
+        # Create database adapter for persistence recovery
+        db_type = get("database.type")
+        db_config = get_database_config(db_type)
+
+        if get("data_collection.enabled") and db_type != "none":
+            db_adapter = create_database_adapter(db_type, db_config)
+            success, failure = load_and_flush_persisted_batches(db_adapter)
+            logging.info(f"Persisted batch recovery: {success} flushed, {failure} failed/pending")
+            db_adapter.close()
+        else:
+            logging.info(
+                "Data collection disabled or database type is 'none' - skipping persistence recovery"
+            )
+    except Exception as e:
+        logging.exception(f"Error during persisted batch recovery: {e}")

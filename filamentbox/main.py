@@ -19,7 +19,7 @@ from .humidity_control import (
 )
 from .database_writer import enqueue_data_point, database_writer, wait_for_queue_empty
 from .logging_config import configure_logging
-from .persistence import load_and_flush_persisted_batches
+from .persistence import recover_persisted_batches
 from .sensor import convert_c_to_f, log_data, read_sensor_data
 from .shared_state import update_sensor_data
 
@@ -131,26 +131,7 @@ def main() -> None:
 
     # Attempt to flush any persisted batches from previous runs before starting fresh data collection.
     # This ensures data durability across reboots.
-    try:
-        logging.info("Loading persisted batches from previous runs...")
-        from .databases import create_database_adapter
-        from .database_writer import get_database_config
-
-        # Create database adapter for persistence recovery
-        db_type = get("database.type")
-        db_config = get_database_config(db_type)
-
-        if get("data_collection.enabled") and db_type != "none":
-            db_adapter = create_database_adapter(db_type, db_config)
-            success, failure = load_and_flush_persisted_batches(db_adapter)
-            logging.info(f"Persisted batch recovery: {success} flushed, {failure} failed/pending")
-            db_adapter.close()
-        else:
-            logging.info(
-                "Data collection disabled or database type is 'none' - skipping persistence recovery"
-            )
-    except Exception as e:
-        logging.exception(f"Error during persisted batch recovery: {e}")
+    recover_persisted_batches()
 
     # Start all threads
     threads = []
