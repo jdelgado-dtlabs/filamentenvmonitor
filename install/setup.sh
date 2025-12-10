@@ -332,8 +332,8 @@ ensure_pysqlcipher3() {
     cd "$INSTALL_ROOT"
     
     # Try pysqlcipher3 first (legacy), then sqlcipher3 (modern)
-    if ! "$INSTALL_ROOT/filamentcontrol/bin/python" -c "import pysqlcipher3" 2>/dev/null && \
-       ! "$INSTALL_ROOT/filamentcontrol/bin/python" -c "import sqlcipher3 as pysqlcipher3" 2>/dev/null; then
+    if ! "$INSTALL_ROOT/filamentcontrol/bin/python" -c "from pysqlcipher3 import dbapi2" 2>/dev/null && \
+       ! "$INSTALL_ROOT/filamentcontrol/bin/python" -c "from sqlcipher3 import dbapi2" 2>/dev/null; then
         echo -e "${YELLOW}SQLCipher Python bindings not found. Installing...${NC}"
         echo ""
         
@@ -381,8 +381,8 @@ ensure_pysqlcipher3() {
         echo ""
         
         # Verify installation
-        if ! "$INSTALL_ROOT/filamentcontrol/bin/python" -c "import pysqlcipher3" 2>/dev/null && \
-           ! "$INSTALL_ROOT/filamentcontrol/bin/python" -c "import sqlcipher3" 2>/dev/null; then
+        if ! "$INSTALL_ROOT/filamentcontrol/bin/python" -c "from pysqlcipher3 import dbapi2" 2>/dev/null && \
+           ! "$INSTALL_ROOT/filamentcontrol/bin/python" -c "from sqlcipher3 import dbapi2" 2>/dev/null; then
             echo -e "${RED}Failed to install SQLCipher Python bindings.${NC}"
             echo -e "${RED}Please install manually and re-run setup.${NC}"
             echo ""
