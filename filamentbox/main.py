@@ -5,8 +5,10 @@ import logging
 import queue
 import threading
 import time
+from typing import Any
 
 from .config import get
+from .config_watcher import start_watcher, stop_watcher, watch
 from .heating_control import (
     get_heating_thread,
     start_heating_control,
@@ -28,6 +30,28 @@ from .shared_state import update_sensor_data
 # Global stop event shared by all threads
 _stop_event = threading.Event()
 
+# Global variable for read interval (can be updated by config watcher)
+_read_interval: float = 5.0
+
+
+def _on_read_interval_changed(key: str, value: Any) -> None:
+    """Handle changes to data_collection.read_interval."""
+    global _read_interval
+    try:
+        new_interval = float(value) if value is not None else 5.0
+        if new_interval != _read_interval:
+            logging.info(f"Read interval changed from {_read_interval}s to {new_interval}s")
+            _read_interval = new_interval
+    except (ValueError, TypeError):
+        logging.warning(f"Invalid read_interval value: {value}, keeping {_read_interval}s")
+
+
+def _on_sensor_type_changed(key: str, value: Any) -> None:
+    """Handle changes to sensor.type."""
+    logging.info(f"Sensor type changed to: {value}")
+    logging.info("Note: Sensor re-initialization will occur on next reading")
+    # The sensor module will reinitialize automatically on next read_sensor_data() call
+
 
 def data_collection_cycle() -> None:
     """Continuously read sensor data, validate types, build point, and enqueue.
@@ -35,7 +59,9 @@ def data_collection_cycle() -> None:
     Converts raw sensor output to floats, filters out None values, attaches
     configured tags (if any), and skips points with no valid numeric fields.
     """
-    read_interval = get("data_collection.read_interval", 5.0)
+    global _read_interval
+    _read_interval = get("data_collection.read_interval", 5.0)
+
     while not _stop_event.is_set():
         temperature_c, humidity = read_sensor_data()
         temperature_f = convert_c_to_f(temperature_c) if temperature_c is not None else None
@@ -84,7 +110,7 @@ def data_collection_cycle() -> None:
         # Ensure we have at least one field (InfluxDB requirement)
         if not fields:
             logging.warning("No valid field values; skipping data point")
-            time.sleep(read_interval)
+            time.sleep(_read_interval)
             continue
 
         # Add tags only if they exist
@@ -105,7 +131,7 @@ def data_collection_cycle() -> None:
         except queue.Full:
             # Dropping data is notable; record as a warning so it's visible on stdout
             logging.warning("Write queue is full. Dropping data point.")
-        time.sleep(read_interval)
+        time.sleep(_read_interval)
 
 
 def cleanup_and_exit() -> None:
@@ -131,6 +157,21 @@ def main() -> None:
         logging.info("Debug mode is ON.")
     else:
         configure_logging(level=logging.INFO)
+
+    # Start configuration watcher for hot-reloading
+    try:
+        from .config_db import CONFIG_DB_PATH
+
+        start_watcher(CONFIG_DB_PATH, interval=2.0)
+
+        # Register callbacks for specific configuration keys
+        watch("data_collection.read_interval", _on_read_interval_changed)
+        watch("sensor.type", _on_sensor_type_changed)
+
+        logging.info("Configuration hot-reload enabled (2s check interval)")
+    except Exception as e:
+        logging.warning(f"Could not start configuration watcher: {e}")
+        logging.info("Configuration changes will require service restart")
 
     # Attempt to flush any persisted batches from previous runs before starting fresh data collection.
     # This ensures data durability across reboots.
@@ -183,6 +224,9 @@ def main() -> None:
 
         # Signal all threads to stop
         _stop_event.set()
+
+        # Stop configuration watcher
+        stop_watcher()
 
         # Stop control threads gracefully
         stop_heating_control()
