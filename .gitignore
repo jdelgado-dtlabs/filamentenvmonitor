@@ -3,6 +3,10 @@
 .env.local
 .config_key
 
+# Auto-generated service files (created by setup.sh)
+install/filamentbox.service
+install/filamentbox-webui.service
+
 # Python
 __pycache__/
 *.py[cod]

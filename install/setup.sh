@@ -165,6 +165,10 @@ if [ "$LEGACY_FILES_EXIST" = true ]; then
         echo ""
         echo -e "${YELLOW}The application will automatically load the key.${NC}"
         echo ""
+        
+        # Generate service files
+        generate_service_files
+        
         echo -e "${CYAN}You can now manage your configuration using:${NC}"
         echo -e "${CYAN}  python scripts/config_tool.py --interactive${NC}"
         echo ""
@@ -537,11 +541,172 @@ save_encryption_key() {
     echo ""
 }
 
+# Function to generate systemd service files
+generate_service_files() {
+    echo -e "${CYAN}Generating systemd service files...${NC}"
+    echo ""
+    
+    local service_dir="$INSTALL_ROOT/install"
+    local main_service="$service_dir/filamentbox.service"
+    local webui_service="$service_dir/filamentbox-webui.service"
+    
+    # Determine if Vault is configured
+    local use_vault=false
+    if [ -n "$VAULT_ADDR" ] && ([ -n "$VAULT_TOKEN" ] || ([ -n "$VAULT_ROLE_ID" ] && [ -n "$VAULT_SECRET_ID" ])); then
+        use_vault=true
+    fi
+    
+    # Generate main service file
+    cat > "$main_service" << 'EOF'
+# Version: 2.0.0
+[Unit]
+Description=FilamentBox Environment Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/filamentcontrol
+Environment="PATH=/opt/filamentcontrol/filamentcontrol/bin"
+EOF
+
+    # Add Vault environment variables if configured
+    if [ "$use_vault" = true ]; then
+        cat >> "$main_service" << EOF
+
+# HashiCorp Vault configuration for encryption key
+Environment="VAULT_ADDR=$VAULT_ADDR"
+EOF
+        if [ -n "$VAULT_TOKEN" ]; then
+            cat >> "$main_service" << EOF
+Environment="VAULT_TOKEN=$VAULT_TOKEN"
+EOF
+        fi
+        if [ -n "$VAULT_ROLE_ID" ]; then
+            cat >> "$main_service" << EOF
+Environment="VAULT_ROLE_ID=$VAULT_ROLE_ID"
+Environment="VAULT_SECRET_ID=$VAULT_SECRET_ID"
+EOF
+        fi
+        if [ -n "$VAULT_NAMESPACE" ]; then
+            cat >> "$main_service" << EOF
+Environment="VAULT_NAMESPACE=$VAULT_NAMESPACE"
+EOF
+        fi
+    fi
+    
+    # Complete the service file
+    cat >> "$main_service" << 'EOF'
+
+ExecStart=/opt/filamentcontrol/filamentcontrol/bin/python /opt/filamentcontrol/run_filamentbox.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/filamentcontrol
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # Generate WebUI service file
+    cat > "$webui_service" << 'EOF'
+# Version: 2.0.0
+[Unit]
+Description=FilamentBox Web UI
+After=network-online.target filamentbox.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/filamentcontrol
+Environment="PATH=/opt/filamentcontrol/filamentcontrol/bin"
+EOF
+
+    # Add Vault environment variables to WebUI service if configured
+    if [ "$use_vault" = true ]; then
+        cat >> "$webui_service" << EOF
+
+# HashiCorp Vault configuration for encryption key
+Environment="VAULT_ADDR=$VAULT_ADDR"
+EOF
+        if [ -n "$VAULT_TOKEN" ]; then
+            cat >> "$webui_service" << EOF
+Environment="VAULT_TOKEN=$VAULT_TOKEN"
+EOF
+        fi
+        if [ -n "$VAULT_ROLE_ID" ]; then
+            cat >> "$webui_service" << EOF
+Environment="VAULT_ROLE_ID=$VAULT_ROLE_ID"
+Environment="VAULT_SECRET_ID=$VAULT_SECRET_ID"
+EOF
+        fi
+        if [ -n "$VAULT_NAMESPACE" ]; then
+            cat >> "$webui_service" << EOF
+Environment="VAULT_NAMESPACE=$VAULT_NAMESPACE"
+EOF
+        fi
+    fi
+    
+    # Complete the WebUI service file
+    cat >> "$webui_service" << 'EOF'
+
+ExecStart=/opt/filamentcontrol/filamentcontrol/bin/python /opt/filamentcontrol/run_webui.py
+Restart=on-failure
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/filamentcontrol
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    if [ "$use_vault" = true ]; then
+        echo -e "${GREEN}✓ Service files generated with HashiCorp Vault support${NC}"
+        echo -e "${GREEN}  - filamentbox.service${NC}"
+        echo -e "${GREEN}  - filamentbox-webui.service${NC}"
+        echo ""
+        echo -e "${CYAN}Vault environment variables included in service files.${NC}"
+    else
+        echo -e "${GREEN}✓ Service files generated (local key file mode)${NC}"
+        echo -e "${GREEN}  - filamentbox.service${NC}"
+        echo -e "${GREEN}  - filamentbox-webui.service${NC}"
+        echo ""
+        echo -e "${CYAN}Services will use local key file: $KEY_FILE${NC}"
+    fi
+    echo ""
+    echo -e "${YELLOW}To install the services, run:${NC}"
+    echo -e "${CYAN}  sudo ./install/install_service.sh${NC}"
+    echo -e "${CYAN}  sudo ./install/install_webui_service.sh${NC}"
+    echo ""
+}
+
 # Function to launch interactive config tool
 launch_config_tool() {
     echo -e "${CYAN}Starting interactive configuration tool...${NC}"
     echo ""
     cd "$INSTALL_ROOT"
     python scripts/config_tool.py --interactive
+    
+    # Generate service files after configuration
+    generate_service_files
+    
     exit 0
 }
