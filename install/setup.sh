@@ -714,9 +714,9 @@ if [ "$LEGACY_FILES_EXIST" = true ]; then
     echo -e "${CYAN}Running migration from legacy configuration files...${NC}"
     echo ""
     
-    # Run migration script
+    # Run migration script using virtual environment Python
     cd "$INSTALL_ROOT"
-    python scripts/migrate_config.py --yaml "$CONFIG_YAML" --env "$ENV_FILE" --db "$CONFIG_DB" --key "$ENCRYPTION_KEY"
+    "$INSTALL_ROOT/filamentcontrol/bin/python" scripts/migrate_config.py --yaml "$CONFIG_YAML" --env "$ENV_FILE" --db "$CONFIG_DB" --key "$ENCRYPTION_KEY"
     
     if [ $? -eq 0 ]; then
         echo ""
