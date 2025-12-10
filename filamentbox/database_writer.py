@@ -39,6 +39,54 @@ write_queue: "queue.Queue[dict[str, Any]]" = queue.Queue(maxsize=WRITE_QUEUE_MAX
 alert_handler: Optional[Callable[[dict[str, Any]], None]] = None
 
 
+def get_database_config(db_type: str) -> dict[str, Any]:
+    """Get database configuration for the specified database type.
+
+    Args:
+        db_type: Database type (influxdb, prometheus, timescaledb, victoriametrics, none)
+
+    Returns:
+        Dictionary with database-specific configuration parameters.
+    """
+    if db_type == "influxdb":
+        return {
+            "host": get("database.influxdb.host"),
+            "port": get("database.influxdb.port"),
+            "username": get("database.influxdb.username"),
+            "password": get("database.influxdb.password"),
+            "database": get("database.influxdb.database"),
+            "ssl": get("database.influxdb.ssl"),
+            "verify_ssl": get("database.influxdb.verify_ssl"),
+        }
+    elif db_type == "prometheus":
+        return {
+            "gateway_url": get("database.prometheus.gateway_url"),
+            "job_name": get("database.prometheus.job_name"),
+            "username": get("database.prometheus.username"),
+            "password": get("database.prometheus.password"),
+            "grouping_key": get("database.prometheus.grouping_key"),
+        }
+    elif db_type == "timescaledb":
+        return {
+            "host": get("database.timescaledb.host"),
+            "port": get("database.timescaledb.port"),
+            "database": get("database.timescaledb.database"),
+            "username": get("database.timescaledb.username"),
+            "password": get("database.timescaledb.password"),
+            "table_name": get("database.timescaledb.table_name"),
+            "ssl_mode": get("database.timescaledb.ssl_mode"),
+        }
+    elif db_type == "victoriametrics":
+        return {
+            "url": get("database.victoriametrics.url"),
+            "username": get("database.victoriametrics.username"),
+            "password": get("database.victoriametrics.password"),
+            "timeout": get("database.victoriametrics.timeout"),
+        }
+    else:  # none or unknown
+        return {}
+
+
 def register_alert_handler(fn: Callable[[dict[str, Any]], None]) -> None:
     """Register callback invoked after reaching repeated failure alert threshold.
 
@@ -99,42 +147,7 @@ def database_writer(stop_event: Optional[threading.Event] = None) -> None:
     update_database_status(DB_TYPE, True, True)
 
     # Get database-specific configuration
-    db_config = {}
-    if DB_TYPE == "influxdb":
-        db_config = {
-            "host": get("database.influxdb.host"),
-            "port": get("database.influxdb.port"),
-            "username": get("database.influxdb.username"),
-            "password": get("database.influxdb.password"),
-            "database": get("database.influxdb.database"),
-            "ssl": get("database.influxdb.ssl"),
-            "verify_ssl": get("database.influxdb.verify_ssl"),
-        }
-    elif DB_TYPE == "prometheus":
-        db_config = {
-            "gateway_url": get("database.prometheus.gateway_url"),
-            "job_name": get("database.prometheus.job_name"),
-            "username": get("database.prometheus.username"),
-            "password": get("database.prometheus.password"),
-            "grouping_key": get("database.prometheus.grouping_key"),
-        }
-    elif DB_TYPE == "timescaledb":
-        db_config = {
-            "host": get("database.timescaledb.host"),
-            "port": get("database.timescaledb.port"),
-            "database": get("database.timescaledb.database"),
-            "username": get("database.timescaledb.username"),
-            "password": get("database.timescaledb.password"),
-            "table_name": get("database.timescaledb.table_name"),
-            "ssl_mode": get("database.timescaledb.ssl_mode"),
-        }
-    elif DB_TYPE == "victoriametrics":
-        db_config = {
-            "url": get("database.victoriametrics.url"),
-            "username": get("database.victoriametrics.username"),
-            "password": get("database.victoriametrics.password"),
-            "timeout": get("database.victoriametrics.timeout"),
-        }
+    db_config = get_database_config(DB_TYPE)
 
     # Create database adapter
     try:

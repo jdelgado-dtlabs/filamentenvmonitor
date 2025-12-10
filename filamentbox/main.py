@@ -134,22 +134,14 @@ def main() -> None:
     try:
         logging.info("Loading persisted batches from previous runs...")
         from .databases import create_database_adapter
+        from .database_writer import get_database_config
 
         # Create database adapter for persistence recovery
         db_type = get("database.type")
-        db_config = {}
+        db_config = get_database_config(db_type)
 
+        # Ensure the InfluxDB database exists (InfluxDB-specific setup)
         if db_type == "influxdb":
-            db_config = {
-                "host": get("database.influxdb.host"),
-                "port": get("database.influxdb.port"),
-                "username": get("database.influxdb.username"),
-                "password": get("database.influxdb.password"),
-                "database": get("database.influxdb.database"),
-                "ssl": get("database.influxdb.ssl"),
-                "verify_ssl": get("database.influxdb.verify_ssl"),
-            }
-            # Ensure the InfluxDB database exists
             try:
                 from influxdb import InfluxDBClient
 
@@ -165,31 +157,6 @@ def main() -> None:
                 logging.info(f"Ensured InfluxDB database exists: {db_config['database']}")
             except Exception:
                 logging.debug("Could not create/ensure InfluxDB database (may already exist)")
-        elif db_type == "prometheus":
-            db_config = {
-                "gateway_url": get("database.prometheus.gateway_url"),
-                "job_name": get("database.prometheus.job_name"),
-                "username": get("database.prometheus.username"),
-                "password": get("database.prometheus.password"),
-                "grouping_key": get("database.prometheus.grouping_key"),
-            }
-        elif db_type == "timescaledb":
-            db_config = {
-                "host": get("database.timescaledb.host"),
-                "port": get("database.timescaledb.port"),
-                "database": get("database.timescaledb.database"),
-                "username": get("database.timescaledb.username"),
-                "password": get("database.timescaledb.password"),
-                "table_name": get("database.timescaledb.table_name"),
-                "ssl_mode": get("database.timescaledb.ssl_mode"),
-            }
-        elif db_type == "victoriametrics":
-            db_config = {
-                "url": get("database.victoriametrics.url"),
-                "username": get("database.victoriametrics.username"),
-                "password": get("database.victoriametrics.password"),
-                "timeout": get("database.victoriametrics.timeout"),
-            }
 
         if get("data_collection.enabled") and db_type != "none":
             db_adapter = create_database_adapter(db_type, db_config)
