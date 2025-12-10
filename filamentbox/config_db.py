@@ -24,7 +24,7 @@ except ImportError:
     hvac = None
 
 # Configuration database path
-CONFIG_DB_PATH = os.path.join(os.path.dirname(__file__), "..", "config.db")
+CONFIG_DB_PATH = os.path.join(os.path.dirname(__file__), "..", "filamentbox_config.db")
 
 # Encryption key file path
 CONFIG_DB_KEY_FILE = os.path.join(os.path.dirname(__file__), "..", ".config_key")

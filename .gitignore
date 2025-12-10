@@ -48,3 +48,4 @@ Thumbs.db
 # Database
 *.db
 unsent_batches.db
+.shared_state.json
