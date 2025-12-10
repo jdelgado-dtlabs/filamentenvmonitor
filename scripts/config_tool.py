@@ -241,8 +241,249 @@ def edit_section_menu(db: ConfigDB, section: str, keys: list):
             input("\nPress Enter to continue...")
 
 
+def get_menu_options_for_key(key: str) -> list[tuple[str, str]] | None:
+    """Get menu options for keys that should use menu selection.
+
+    Returns list of (value, description) tuples, or None if key should use text input.
+    """
+    # Database type selection
+    if key == "database.type":
+        return [
+            ("influxdb", "InfluxDB 1.x (username/password)"),
+            ("influxdb2", "InfluxDB 2.x (token/bucket/org)"),
+            ("influxdb3", "InfluxDB 3.x (cloud/serverless)"),
+            ("prometheus", "Prometheus Pushgateway"),
+            ("timescaledb", "TimescaleDB (PostgreSQL)"),
+            ("victoriametrics", "VictoriaMetrics"),
+            ("none", "No database (sensor only mode)"),
+        ]
+
+    # Sensor type selection
+    if key == "sensor.type":
+        return [
+            ("bme280", "BME280 (I2C temperature/humidity/pressure)"),
+            ("dht22", "DHT22 (GPIO temperature/humidity)"),
+        ]
+
+    # Boolean values (enabled/disabled, true/false, ssl, etc.)
+    if any(pattern in key.lower() for pattern in ["enabled", ".ssl", "verify_ssl", "persist_on"]):
+        return [
+            ("true", "Enabled / Yes"),
+            ("false", "Disabled / No"),
+        ]
+
+    # TimescaleDB SSL mode
+    if key == "timescaledb.ssl_mode":
+        return [
+            ("disable", "Disable SSL"),
+            ("allow", "Allow SSL (try SSL, fallback to non-SSL)"),
+            ("prefer", "Prefer SSL (try SSL first)"),
+            ("require", "Require SSL"),
+            ("verify-ca", "Verify CA certificate"),
+            ("verify-full", "Verify CA and hostname"),
+        ]
+
+    return None
+
+
+def edit_value_with_menu(
+    db: ConfigDB, key: str, description: str, options: list[tuple[str, str]]
+) -> str | None:
+    """Present a menu for selecting from predefined options.
+
+    Returns selected value or None if user cancels.
+    """
+    current_value = db.get(key)
+
+    print_header(f"Edit: {key}")
+    if description:
+        print(f"Description: {description}\n")
+
+    print(f"Current value: {current_value}\n")
+    print("Select new value:\n")
+
+    for i, (value, desc) in enumerate(options, 1):
+        marker = " ←" if str(current_value) == value else ""
+        print(f"{i}. {value:<20} {desc}{marker}")
+
+    print(f"{len(options) + 1}. Cancel")
+    print()
+
+    choice = input(f"Select option (1-{len(options) + 1}): ").strip()
+
+    try:
+        choice_num = int(choice)
+        if choice_num == len(options) + 1:
+            return None
+        if 1 <= choice_num <= len(options):
+            selected_value = options[choice_num - 1][0]
+            # Convert to boolean if needed
+            if selected_value in ["true", "false"]:
+                return selected_value == "true"
+            return selected_value
+        else:
+            print("Invalid option.")
+            input("\nPress Enter to continue...")
+            return None
+    except ValueError:
+        print("Invalid input.")
+        input("\nPress Enter to continue...")
+        return None
+
+
+def is_text_input_key(key: str) -> bool:
+    """Check if key should use text input (IP, port, password, etc.)."""
+    text_input_patterns = [
+        "host",
+        "url",
+        "port",
+        "password",
+        "token",
+        "secret",
+        "username",
+        "database",
+        "bucket",
+        "org",
+        "gateway_url",
+        "job_name",
+        "table_name",
+        "db_path",
+        "measurement",
+        "read_interval",
+        "batch_size",
+        "flush_interval",
+        "max_size",
+        "backoff_base",
+        "backoff_max",
+        "alert_threshold",
+        "max_batches",
+        "sea_level_pressure",
+        "gpio_pin",
+        "min_temp",
+        "max_temp",
+        "min_humidity",
+        "max_humidity",
+        "check_interval",
+        "timeout",
+        "instance",
+        "grouping_key",
+    ]
+
+    return any(pattern in key.lower() for pattern in text_input_patterns)
+
+
+def edit_tags_menu(db: ConfigDB, base_key: str = "data_collection.tags"):
+    """Special menu for editing tags (key-value pairs)."""
+    while True:
+        print_header("Edit Tags")
+
+        # Get all tag keys
+        all_keys = db.list_keys(base_key)
+        tag_keys = [(k, d) for k, d in all_keys if k.startswith(f"{base_key}.")]
+
+        if not tag_keys:
+            print("No tags configured.\n")
+        else:
+            print("Current tags:\n")
+            for i, (key, desc) in enumerate(tag_keys, 1):
+                tag_name = key.replace(f"{base_key}.", "")
+                tag_value = db.get(key)
+                print(f"{i}. {tag_name:<20} = {tag_value}")
+
+        print(f"\n{len(tag_keys) + 1}. Add new tag")
+        print(f"{len(tag_keys) + 2}. Back")
+        print()
+
+        choice = input(f"Select option (1-{len(tag_keys) + 2}): ").strip()
+
+        try:
+            choice_num = int(choice)
+
+            if choice_num == len(tag_keys) + 2:
+                return
+            elif choice_num == len(tag_keys) + 1:
+                # Add new tag
+                tag_name = input("\nEnter tag name: ").strip()
+                if not tag_name:
+                    print("Tag name cannot be empty")
+                    input("\nPress Enter to continue...")
+                    continue
+
+                tag_value = input(f"Enter value for tag '{tag_name}': ").strip()
+                if not tag_value:
+                    print("Tag value cannot be empty")
+                    input("\nPress Enter to continue...")
+                    continue
+
+                full_key = f"{base_key}.{tag_name}"
+                db.set(full_key, tag_value, f"Tag: {tag_name}")
+                print(f"\n✓ Added tag: {tag_name} = {tag_value}")
+                input("\nPress Enter to continue...")
+
+            elif 1 <= choice_num <= len(tag_keys):
+                # Edit existing tag
+                selected_key, selected_desc = tag_keys[choice_num - 1]
+                tag_name = selected_key.replace(f"{base_key}.", "")
+                current_value = db.get(selected_key)
+
+                print(f"\nEditing tag: {tag_name}")
+                print(f"Current value: {current_value}\n")
+                print("1. Change value")
+                print("2. Delete this tag")
+                print("3. Back")
+                print()
+
+                edit_choice = input("Select option (1-3): ").strip()
+
+                if edit_choice == "1":
+                    new_value = input(f"Enter new value for '{tag_name}': ").strip()
+                    if not new_value:
+                        print("Tag value cannot be empty")
+                        input("\nPress Enter to continue...")
+                        continue
+
+                    db.set(selected_key, new_value, selected_desc)
+                    print(f"\n✓ Updated tag: {tag_name} = {new_value}")
+                    input("\nPress Enter to continue...")
+
+                elif edit_choice == "2":
+                    confirm = input(f"Delete tag '{tag_name}'? (yes/no): ").strip().lower()
+                    if confirm == "yes":
+                        if db.delete(selected_key):
+                            print(f"\n✓ Deleted tag: {tag_name}")
+                            input("\nPress Enter to continue...")
+                    else:
+                        print("Cancelled")
+                        input("\nPress Enter to continue...")
+            else:
+                print("Invalid option.")
+                input("\nPress Enter to continue...")
+
+        except ValueError:
+            print("Invalid input.")
+            input("\nPress Enter to continue...")
+
+
 def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
     """Edit a single configuration value."""
+    # Special handling for tags
+    if key == "data_collection.tags":
+        edit_tags_menu(db, key)
+        return
+
+    # Check if this key has predefined menu options
+    menu_options = get_menu_options_for_key(key)
+
+    if menu_options:
+        # Use menu selection
+        new_value = edit_value_with_menu(db, key, description, menu_options)
+        if new_value is not None:
+            db.set(key, new_value, description)
+            print(f"\n✓ Updated {key} = {new_value}")
+            input("\nPress Enter to continue...")
+        return
+
+    # Original text input flow
     while True:
         current_value = db.get(key)
 
