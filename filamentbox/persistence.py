@@ -9,20 +9,36 @@ import logging
 import os
 import sqlite3
 import time
-from typing import Any, Sequence, Tuple
+from typing import Any, Optional, Sequence, Tuple
 
 from .config import get
 
+# Lazy-loaded configuration values
+_db_path: Optional[str] = None
+_max_persisted_batches: Optional[int] = None
 
-_db_path = get("persistence.db_path")
-DB_PATH = os.path.join(os.path.dirname(__file__), "..", _db_path)
-MAX_PERSISTED_BATCHES = get("persistence.max_batches")
+
+def _get_db_path() -> str:
+    """Get database path, loading from config on first access."""
+    global _db_path
+    if _db_path is None:
+        _db_path = get("persistence.db_path")
+    return os.path.join(os.path.dirname(__file__), "..", _db_path)
+
+
+def _get_max_batches() -> int:
+    """Get max batches limit, loading from config on first access."""
+    global _max_persisted_batches
+    if _max_persisted_batches is None:
+        _max_persisted_batches = get("persistence.max_batches")
+    return _max_persisted_batches
 
 
 def _init_db() -> None:
     """Ensure persistence database and table exist (idempotent)."""
+    db_path = _get_db_path()
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(db_path)
         conn.execute("""
 			CREATE TABLE IF NOT EXISTS unsent_batches (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,7 +58,7 @@ def persist_batch(batch: Sequence[dict[str, Any]]) -> None:
         return
     try:
         _init_db()  # Ensure table exists before inserting
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(_get_db_path())
         batch_json = json.dumps(batch)
         conn.execute(
             "INSERT INTO unsent_batches (persisted_at, batch_json) VALUES (?, ?)",
@@ -59,14 +75,15 @@ def persist_batch(batch: Sequence[dict[str, Any]]) -> None:
 def _prune_old_batches() -> None:
     """Prune oldest rows when count exceeds maximum configured limit."""
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(_get_db_path())
         cursor = conn.execute("SELECT COUNT(*) FROM unsent_batches")
         count = cursor.fetchone()[0]
-        if count <= MAX_PERSISTED_BATCHES:
+        max_batches = _get_max_batches()
+        if count <= max_batches:
             conn.close()
             return
         # Delete oldest rows to bring count down to 80% of max
-        target = int(MAX_PERSISTED_BATCHES * 0.8)
+        target = int(max_batches * 0.8)
         to_remove = count - target
         conn.execute(
             "DELETE FROM unsent_batches WHERE id IN "
@@ -93,7 +110,7 @@ def load_and_flush_persisted_batches(db_adapter) -> Tuple[int, int]:
     success_count = 0
     failure_count = 0
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(_get_db_path())
         cursor = conn.execute("SELECT id, batch_json FROM unsent_batches ORDER BY persisted_at ASC")
         rows = cursor.fetchall()
         conn.close()
@@ -103,7 +120,7 @@ def load_and_flush_persisted_batches(db_adapter) -> Tuple[int, int]:
                 db_adapter.write_points(batch)
                 logging.info(f"Flushed persisted batch {row_id} to database")
                 # Remove from database
-                conn = sqlite3.connect(DB_PATH)
+                conn = sqlite3.connect(_get_db_path())
                 conn.execute("DELETE FROM unsent_batches WHERE id = ?", (row_id,))
                 conn.commit()
                 conn.close()
@@ -111,7 +128,7 @@ def load_and_flush_persisted_batches(db_adapter) -> Tuple[int, int]:
             except json.JSONDecodeError as e:
                 # Malformed JSON: log and drop the batch
                 logging.error(f"Malformed JSON in persisted batch {row_id}: {e}; dropping batch")
-                conn = sqlite3.connect(DB_PATH)
+                conn = sqlite3.connect(_get_db_path())
                 conn.execute("DELETE FROM unsent_batches WHERE id = ?", (row_id,))
                 conn.commit()
                 conn.close()
@@ -123,7 +140,7 @@ def load_and_flush_persisted_batches(db_adapter) -> Tuple[int, int]:
                     logging.error(
                         f"Database rejected batch {row_id} (bad request): {e}; dropping batch"
                     )
-                    conn = sqlite3.connect(DB_PATH)
+                    conn = sqlite3.connect(_get_db_path())
                     conn.execute("DELETE FROM unsent_batches WHERE id = ?", (row_id,))
                     conn.commit()
                     conn.close()
