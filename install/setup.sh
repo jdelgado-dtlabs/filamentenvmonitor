@@ -247,14 +247,151 @@ generate_encryption_key() {
     ENCRYPTION_KEY=$(head -c 48 /dev/urandom | base64 | tr -d '\n' | tr -d '=' | head -c 64)
 }
 
+# Function to configure Vault interactively
+configure_vault_interactive() {
+    echo ""
+    echo -e "${BLUE}========================================${NC}"
+    echo -e "${BLUE}HashiCorp Vault Configuration${NC}"
+    echo -e "${BLUE}========================================${NC}"
+    echo ""
+    echo -e "${CYAN}HashiCorp Vault provides enterprise-grade secret management.${NC}"
+    echo ""
+    
+    # Ask if user wants to use Vault
+    if ! ask_yes_no "Do you have a HashiCorp Vault server available?" "N"; then
+        echo ""
+        echo -e "${YELLOW}⚠ Vault not configured${NC}"
+        echo -e "${YELLOW}The encryption key will be stored in a local file:${NC}"
+        echo -e "${YELLOW}  $KEY_FILE${NC}"
+        echo -e "${YELLOW}  (Permissions: 600 - owner read/write only)${NC}"
+        echo ""
+        echo -e "${CYAN}For enhanced security in production, consider using HashiCorp Vault.${NC}"
+        echo -e "${CYAN}See: docs/VAULT_INTEGRATION.md${NC}"
+        echo ""
+        return 1
+    fi
+    
+    echo ""
+    echo -e "${GREEN}Great! Let's configure Vault access.${NC}"
+    echo ""
+    
+    # Check if hvac is installed
+    if ! python -c "import hvac" 2>/dev/null; then
+        echo -e "${YELLOW}HashiCorp Vault Python library (hvac) not installed.${NC}"
+        echo ""
+        if ask_yes_no "Install hvac library now?" "Y"; then
+            pip install hvac
+            echo ""
+        else
+            echo -e "${RED}Cannot use Vault without hvac library.${NC}"
+            echo -e "${YELLOW}Falling back to local file storage.${NC}"
+            echo ""
+            return 1
+        fi
+    fi
+    
+    # Get Vault address
+    echo -e "${CYAN}Vault Server Configuration${NC}"
+    echo ""
+    read -p "Vault server address (e.g., https://vault.example.com:8200): " vault_addr
+    
+    if [ -z "$vault_addr" ]; then
+        echo -e "${RED}Vault address is required.${NC}"
+        echo -e "${YELLOW}Falling back to local file storage.${NC}"
+        echo ""
+        return 1
+    fi
+    
+    export VAULT_ADDR="$vault_addr"
+    
+    # Get authentication method
+    echo ""
+    echo -e "${CYAN}Authentication Method${NC}"
+    echo ""
+    echo "1. Token authentication (simple, for testing)"
+    echo "2. AppRole authentication (recommended for production)"
+    echo ""
+    read -p "Select method (1 or 2): " auth_method
+    
+    if [ "$auth_method" = "1" ]; then
+        read -s -p "Enter Vault token: " vault_token
+        echo ""
+        if [ -z "$vault_token" ]; then
+            echo -e "${RED}Token is required.${NC}"
+            echo -e "${YELLOW}Falling back to local file storage.${NC}"
+            echo ""
+            unset VAULT_ADDR
+            return 1
+        fi
+        export VAULT_TOKEN="$vault_token"
+        
+    elif [ "$auth_method" = "2" ]; then
+        read -p "Enter Role ID: " vault_role_id
+        read -s -p "Enter Secret ID: " vault_secret_id
+        echo ""
+        
+        if [ -z "$vault_role_id" ] || [ -z "$vault_secret_id" ]; then
+            echo -e "${RED}Both Role ID and Secret ID are required.${NC}"
+            echo -e "${YELLOW}Falling back to local file storage.${NC}"
+            echo ""
+            unset VAULT_ADDR
+            return 1
+        fi
+        
+        export VAULT_ROLE_ID="$vault_role_id"
+        export VAULT_SECRET_ID="$vault_secret_id"
+    else
+        echo -e "${RED}Invalid selection.${NC}"
+        echo -e "${YELLOW}Falling back to local file storage.${NC}"
+        echo ""
+        unset VAULT_ADDR
+        return 1
+    fi
+    
+    # Optional namespace
+    echo ""
+    read -p "Vault namespace (optional, press Enter to skip): " vault_namespace
+    if [ -n "$vault_namespace" ]; then
+        export VAULT_NAMESPACE="$vault_namespace"
+    fi
+    
+    echo ""
+    echo -e "${GREEN}✓ Vault configuration complete${NC}"
+    echo ""
+    
+    # Save Vault config for future use
+    echo -e "${CYAN}Saving Vault configuration for persistence...${NC}"
+    echo ""
+    echo -e "${YELLOW}Add these to your shell profile (~/.bashrc or ~/.bash_profile):${NC}"
+    echo ""
+    echo "export VAULT_ADDR='$vault_addr'"
+    if [ -n "$vault_token" ]; then
+        echo "export VAULT_TOKEN='$vault_token'"
+    fi
+    if [ -n "$vault_role_id" ]; then
+        echo "export VAULT_ROLE_ID='$vault_role_id'"
+        echo "export VAULT_SECRET_ID='$vault_secret_id'"
+    fi
+    if [ -n "$vault_namespace" ]; then
+        echo "export VAULT_NAMESPACE='$vault_namespace'"
+    fi
+    echo ""
+    
+    return 0
+}
+
 # Function to prompt for encryption key
 prompt_encryption_key() {
+    # First, ask about Vault
+    configure_vault_interactive
+    VAULT_CONFIGURED=$?
+    
     echo ""
     echo -e "${YELLOW}========================================${NC}"
-    echo -e "${YELLOW}Encryption Key Setup${NC}"
+    echo -e "${YELLOW}Encryption Key Generation${NC}"
     echo -e "${YELLOW}========================================${NC}"
     echo ""
-    echo -e "${CYAN}A strong encryption key is required for your configuration database.${NC}"
+    echo -e "${CYAN}A strong encryption key will be automatically generated.${NC}"
     echo -e "${CYAN}This key will be used to encrypt/decrypt your configuration.${NC}"
     echo ""
     
@@ -272,12 +409,19 @@ prompt_encryption_key() {
     echo -e "${YELLOW}Action items:${NC}"
     echo -e "  1. ${RED}Copy the key above to a secure location${NC}"
     echo -e "  2. Store it in a password manager or encrypted vault"
-    echo -e "  3. You'll need this key if you ever need to recover"
+    echo -e "  3. Keep this backup - you'll need it if you lose access to the key"
     echo ""
     echo -e "${RED}WARNING:${NC}"
     echo -e "${RED}  - If you lose this key, you CANNOT recover your configuration${NC}"
-    echo -e "${RED}  - The key will be saved to $KEY_FILE${NC}"
-    echo -e "${RED}  - Keep backups of both the key file and the key itself${NC}"
+    
+    if [ $VAULT_CONFIGURED -eq 0 ]; then
+        echo -e "${RED}  - The key will be saved to HashiCorp Vault${NC}"
+        echo -e "${RED}  - A backup will also be saved to $KEY_FILE${NC}"
+    else
+        echo -e "${RED}  - The key will be saved to $KEY_FILE${NC}"
+    fi
+    
+    echo -e "${RED}  - Keep backups of the key in a secure location${NC}"
     echo ""
     
     # Wait for user confirmation
