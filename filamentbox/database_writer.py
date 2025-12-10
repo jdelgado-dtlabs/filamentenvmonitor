@@ -102,38 +102,38 @@ def database_writer(stop_event: Optional[threading.Event] = None) -> None:
     db_config = {}
     if DB_TYPE == "influxdb":
         db_config = {
-            "host": get("influxdb.host"),
-            "port": get("influxdb.port"),
-            "username": get("influxdb.username"),
-            "password": get("influxdb.password"),
-            "database": get("influxdb.database"),
-            "ssl": get("influxdb.ssl"),
-            "verify_ssl": get("influxdb.verify_ssl"),
+            "host": get("database.influxdb.host"),
+            "port": get("database.influxdb.port"),
+            "username": get("database.influxdb.username"),
+            "password": get("database.influxdb.password"),
+            "database": get("database.influxdb.database"),
+            "ssl": get("database.influxdb.ssl"),
+            "verify_ssl": get("database.influxdb.verify_ssl"),
         }
     elif DB_TYPE == "prometheus":
         db_config = {
-            "gateway_url": get("prometheus.gateway_url"),
-            "job_name": get("prometheus.job_name"),
-            "username": get("prometheus.username"),
-            "password": get("prometheus.password"),
-            "grouping_key": get("prometheus.grouping_key"),
+            "gateway_url": get("database.prometheus.gateway_url"),
+            "job_name": get("database.prometheus.job_name"),
+            "username": get("database.prometheus.username"),
+            "password": get("database.prometheus.password"),
+            "grouping_key": get("database.prometheus.grouping_key"),
         }
     elif DB_TYPE == "timescaledb":
         db_config = {
-            "host": get("timescaledb.host"),
-            "port": get("timescaledb.port"),
-            "database": get("timescaledb.database"),
-            "username": get("timescaledb.username"),
-            "password": get("timescaledb.password"),
-            "table_name": get("timescaledb.table_name"),
-            "ssl_mode": get("timescaledb.ssl_mode"),
+            "host": get("database.timescaledb.host"),
+            "port": get("database.timescaledb.port"),
+            "database": get("database.timescaledb.database"),
+            "username": get("database.timescaledb.username"),
+            "password": get("database.timescaledb.password"),
+            "table_name": get("database.timescaledb.table_name"),
+            "ssl_mode": get("database.timescaledb.ssl_mode"),
         }
     elif DB_TYPE == "victoriametrics":
         db_config = {
-            "url": get("victoriametrics.url"),
-            "username": get("victoriametrics.username"),
-            "password": get("victoriametrics.password"),
-            "timeout": get("victoriametrics.timeout"),
+            "url": get("database.victoriametrics.url"),
+            "username": get("database.victoriametrics.username"),
+            "password": get("database.victoriametrics.password"),
+            "timeout": get("database.victoriametrics.timeout"),
         }
 
     # Create database adapter

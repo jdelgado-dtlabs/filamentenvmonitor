@@ -31,45 +31,45 @@ data_collection:
 database:
   type: "influxdb"  # Options: influxdb, prometheus, timescaledb, victoriametrics, none
 
-# InfluxDB Configuration (v1.x)
-# Used when database.type = "influxdb"
-influxdb:
-  host: "influxdb"
-  port: 8086
-  username: "admin"  # Can be overridden by INFLUXDB_USERNAME env var
-  password: "CHANGE_ME"  # MUST be set via INFLUXDB_PASSWORD env var in production
-  database: "influx"     # Name of the InfluxDB database to write into
-  ssl: false
-  verify_ssl: true
+  # InfluxDB Configuration (v1.x)
+  # Used when database.type = "influxdb"
+  influxdb:
+    host: "influxdb"
+    port: 8086
+    username: "admin"  # Can be overridden by INFLUXDB_USERNAME env var
+    password: "CHANGE_ME"  # MUST be set via INFLUXDB_PASSWORD env var in production
+    database: "influx"     # Name of the InfluxDB database to write into
+    ssl: false
+    verify_ssl: true
 
-# Prometheus Pushgateway Configuration
-# Used when database.type = "prometheus"
-prometheus:
-  gateway_url: "http://pushgateway:9091"
-  job_name: "filamentbox"
-  username: ""  # Optional: PROMETHEUS_USERNAME env var
-  password: ""  # Optional: PROMETHEUS_PASSWORD env var
-  grouping_key:  # Optional additional labels
-    instance: "filamentbox-1"
+  # Prometheus Pushgateway Configuration
+  # Used when database.type = "prometheus"
+  prometheus:
+    gateway_url: "http://pushgateway:9091"
+    job_name: "filamentbox"
+    username: ""  # Optional: PROMETHEUS_USERNAME env var
+    password: ""  # Optional: PROMETHEUS_PASSWORD env var
+    grouping_key:  # Optional additional labels
+      instance: "filamentbox-1"
 
-# TimescaleDB Configuration (PostgreSQL extension)
-# Used when database.type = "timescaledb"
-timescaledb:
-  host: "timescaledb"
-  port: 5432
-  database: "filamentbox"
-  username: "postgres"  # Can be overridden by TIMESCALEDB_USERNAME env var
-  password: "CHANGE_ME"  # MUST be set via TIMESCALEDB_PASSWORD env var in production
-  table_name: "environment"
-  ssl_mode: ""  # Options: disable, allow, prefer, require, verify-ca, verify-full
+  # TimescaleDB Configuration (PostgreSQL extension)
+  # Used when database.type = "timescaledb"
+  timescaledb:
+    host: "timescaledb"
+    port: 5432
+    database: "filamentbox"
+    username: "postgres"  # Can be overridden by TIMESCALEDB_USERNAME env var
+    password: "CHANGE_ME"  # MUST be set via TIMESCALEDB_PASSWORD env var in production
+    table_name: "environment"
+    ssl_mode: ""  # Options: disable, allow, prefer, require, verify-ca, verify-full
 
-# VictoriaMetrics Configuration
-# Used when database.type = "victoriametrics"
-victoriametrics:
-  url: "http://victoriametrics:8428"
-  username: ""  # Optional: VICTORIAMETRICS_USERNAME env var
-  password: ""  # Optional: VICTORIAMETRICS_PASSWORD env var
-  timeout: 10
+  # VictoriaMetrics Configuration
+  # Used when database.type = "victoriametrics"
+  victoriametrics:
+    url: "http://victoriametrics:8428"
+    username: ""  # Optional: VICTORIAMETRICS_USERNAME env var
+    password: ""  # Optional: VICTORIAMETRICS_PASSWORD env var
+    timeout: 10
 
 # ========================================
 # System Configuration
