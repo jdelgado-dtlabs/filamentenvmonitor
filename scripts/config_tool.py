@@ -126,32 +126,32 @@ def delete_value(db: ConfigDB, key: str):
 
 
 def interactive_menu(db: ConfigDB):
-    """Interactive configuration menu with numbered selections."""
+    """Interactive configuration menu with letter-based commands."""
     while True:
         print_header("FilamentBox Configuration Manager")
-        print("1. Browse and edit configuration")
-        print("2. Add new configuration value")
-        print("3. Search for a configuration key")
-        print("4. View all configuration")
-        print("5. Exit")
+        print("B - Browse and edit configuration")
+        print("N - Add new configuration value")
+        print("S - Search for a configuration key")
+        print("V - View all configuration")
+        print("Q - Quit")
         print()
 
-        choice = input("Select option (1-5): ").strip()
+        choice = input("Select option: ").strip().upper()
 
-        if choice == "1":
+        if choice == "B":
             browse_and_edit_menu(db)
-        elif choice == "2":
+        elif choice == "N":
             add_new_value(db)
-        elif choice == "3":
+        elif choice == "S":
             search_config(db)
-        elif choice == "4":
+        elif choice == "V":
             list_config(db)
             input("\nPress Enter to continue...")
-        elif choice == "5":
+        elif choice == "Q":
             print("\nGoodbye!")
             break
         else:
-            print("Invalid option. Please select 1-5.")
+            print("Invalid option. Please select B, N, S, V, or Q.")
             input("\nPress Enter to continue...")
 
 
@@ -178,23 +178,24 @@ def browse_and_edit_menu(db: ConfigDB):
         for i, section in enumerate(section_list, 1):
             count = len(sections[section])
             print(f"{i}. {section.upper()} ({count} settings)")
-        print(f"{len(section_list) + 1}. Back to main menu")
+        print("B - Back to main menu")
         print()
 
-        choice = input(f"Select section (1-{len(section_list) + 1}): ").strip()
+        choice = input("Select section (number or B): ").strip().upper()
+
+        if choice == "B":
+            return
 
         try:
             choice_num = int(choice)
-            if choice_num == len(section_list) + 1:
-                return
             if 1 <= choice_num <= len(section_list):
                 selected_section = section_list[choice_num - 1]
                 edit_section_menu(db, selected_section, sections[selected_section])
             else:
-                print(f"Invalid option. Please select 1-{len(section_list) + 1}.")
+                print(f"Invalid option. Please select 1-{len(section_list)} or B.")
                 input("\nPress Enter to continue...")
         except ValueError:
-            print("Invalid input. Please enter a number.")
+            print("Invalid input. Please enter a number or B.")
             input("\nPress Enter to continue...")
 
 
@@ -221,23 +222,24 @@ def edit_section_menu(db: ConfigDB, section: str, keys: list):
             if desc:
                 print(f"   {'':<35}   {desc}")
 
-        print(f"{len(keys) + 1}. Back to sections")
+        print("B - Back to sections")
         print()
 
-        choice = input(f"Select setting to edit (1-{len(keys) + 1}): ").strip()
+        choice = input("Select setting to edit (number or B): ").strip().upper()
+
+        if choice == "B":
+            return
 
         try:
             choice_num = int(choice)
-            if choice_num == len(keys) + 1:
-                return
             if 1 <= choice_num <= len(keys):
                 selected_key, selected_desc = keys[choice_num - 1]
                 edit_value_menu(db, selected_key, selected_desc)
             else:
-                print(f"Invalid option. Please select 1-{len(keys) + 1}.")
+                print(f"Invalid option. Please select 1-{len(keys)} or B.")
                 input("\nPress Enter to continue...")
         except ValueError:
-            print("Invalid input. Please enter a number.")
+            print("Invalid input. Please enter a number or B.")
             input("\nPress Enter to continue...")
 
 
@@ -306,15 +308,16 @@ def edit_value_with_menu(
         marker = " ←" if str(current_value) == value else ""
         print(f"{i}. {value:<20} {desc}{marker}")
 
-    print(f"{len(options) + 1}. Cancel")
+    print("C - Cancel")
     print()
 
-    choice = input(f"Select option (1-{len(options) + 1}): ").strip()
+    choice = input("Select option (number or C): ").strip().upper()
+
+    if choice == "C":
+        return None
 
     try:
         choice_num = int(choice)
-        if choice_num == len(options) + 1:
-            return None
         if 1 <= choice_num <= len(options):
             selected_value = options[choice_num - 1][0]
             # Convert to boolean if needed
@@ -390,78 +393,78 @@ def edit_tags_menu(db: ConfigDB, base_key: str = "data_collection.tags"):
                 tag_value = db.get(key)
                 print(f"{i}. {tag_name:<20} = {tag_value}")
 
-        print(f"\n{len(tag_keys) + 1}. Add new tag")
-        print(f"{len(tag_keys) + 2}. Back")
+        print("\nN - Add new tag")
+        print("B - Back")
         print()
 
-        choice = input(f"Select option (1-{len(tag_keys) + 2}): ").strip()
+        choice = input("Select option (number, N, or B): ").strip().upper()
 
-        try:
-            choice_num = int(choice)
-
-            if choice_num == len(tag_keys) + 2:
-                return
-            elif choice_num == len(tag_keys) + 1:
-                # Add new tag
-                tag_name = input("\nEnter tag name: ").strip()
-                if not tag_name:
-                    print("Tag name cannot be empty")
-                    input("\nPress Enter to continue...")
-                    continue
-
-                tag_value = input(f"Enter value for tag '{tag_name}': ").strip()
-                if not tag_value:
-                    print("Tag value cannot be empty")
-                    input("\nPress Enter to continue...")
-                    continue
-
-                full_key = f"{base_key}.{tag_name}"
-                db.set(full_key, tag_value, f"Tag: {tag_name}")
-                print(f"\n✓ Added tag: {tag_name} = {tag_value}")
+        if choice == "B":
+            return
+        elif choice == "N":
+            # Add new tag
+            tag_name = input("\nEnter tag name: ").strip()
+            if not tag_name:
+                print("Tag name cannot be empty")
                 input("\nPress Enter to continue...")
+                continue
 
-            elif 1 <= choice_num <= len(tag_keys):
-                # Edit existing tag
-                selected_key, selected_desc = tag_keys[choice_num - 1]
-                tag_name = selected_key.replace(f"{base_key}.", "")
-                current_value = db.get(selected_key)
-
-                print(f"\nEditing tag: {tag_name}")
-                print(f"Current value: {current_value}\n")
-                print("1. Change value")
-                print("2. Delete this tag")
-                print("3. Back")
-                print()
-
-                edit_choice = input("Select option (1-3): ").strip()
-
-                if edit_choice == "1":
-                    new_value = input(f"Enter new value for '{tag_name}': ").strip()
-                    if not new_value:
-                        print("Tag value cannot be empty")
-                        input("\nPress Enter to continue...")
-                        continue
-
-                    db.set(selected_key, new_value, selected_desc)
-                    print(f"\n✓ Updated tag: {tag_name} = {new_value}")
-                    input("\nPress Enter to continue...")
-
-                elif edit_choice == "2":
-                    confirm = input(f"Delete tag '{tag_name}'? (yes/no): ").strip().lower()
-                    if confirm == "yes":
-                        if db.delete(selected_key):
-                            print(f"\n✓ Deleted tag: {tag_name}")
-                            input("\nPress Enter to continue...")
-                    else:
-                        print("Cancelled")
-                        input("\nPress Enter to continue...")
-            else:
-                print("Invalid option.")
+            tag_value = input(f"Enter value for tag '{tag_name}': ").strip()
+            if not tag_value:
+                print("Tag value cannot be empty")
                 input("\nPress Enter to continue...")
+                continue
 
-        except ValueError:
-            print("Invalid input.")
+            full_key = f"{base_key}.{tag_name}"
+            db.set(full_key, tag_value, f"Tag: {tag_name}")
+            print(f"\n✓ Added tag: {tag_name} = {tag_value}")
             input("\nPress Enter to continue...")
+        else:
+            try:
+                choice_num = int(choice)
+                if 1 <= choice_num <= len(tag_keys):
+                    # Edit existing tag
+                    selected_key, selected_desc = tag_keys[choice_num - 1]
+                    tag_name = selected_key.replace(f"{base_key}.", "")
+                    current_value = db.get(selected_key)
+
+                    print(f"\nEditing tag: {tag_name}")
+                    print(f"Current value: {current_value}\n")
+                    print("E - Change value")
+                    print("D - Delete this tag")
+                    print("B - Back")
+                    print()
+
+                    edit_choice = input("Select option: ").strip().upper()
+
+                    if edit_choice == "E":
+                        new_value = input(f"Enter new value for '{tag_name}': ").strip()
+                        if not new_value:
+                            print("Tag value cannot be empty")
+                            input("\nPress Enter to continue...")
+                            continue
+
+                        db.set(selected_key, new_value, selected_desc)
+                        print(f"\n✓ Updated tag: {tag_name} = {new_value}")
+                        input("\nPress Enter to continue...")
+
+                    elif edit_choice == "D":
+                        confirm = input(f"Delete tag '{tag_name}'? (yes/no): ").strip().lower()
+                        if confirm == "yes":
+                            if db.delete(selected_key):
+                                print(f"\n✓ Deleted tag: {tag_name}")
+                                input("\nPress Enter to continue...")
+                        else:
+                            print("Cancelled")
+                            input("\nPress Enter to continue...")
+                    elif edit_choice == "B":
+                        continue
+                else:
+                    print("Invalid option.")
+                    input("\nPress Enter to continue...")
+            except ValueError:
+                print("Invalid input.")
+                input("\nPress Enter to continue...")
 
 
 def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
@@ -506,14 +509,14 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
             print(f"Value type: {type(current_value).__name__}")
         print()
 
-        print("1. Change value")
-        print("2. Delete this setting")
-        print("3. Back")
+        print("E - Change value")
+        print("D - Delete this setting")
+        print("B - Back")
         print()
 
-        choice = input("Select option (1-3): ").strip()
+        choice = input("Select option: ").strip().upper()
 
-        if choice == "1":
+        if choice == "E":
             # Get new value
             if is_sensitive:
                 new_value = getpass.getpass("Enter new value: ")
@@ -557,7 +560,7 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
             input("\nPress Enter to continue...")
             return
 
-        elif choice == "2":
+        elif choice == "D":
             confirm = input(f"Delete '{key}'? (yes/no): ").strip().lower()
             if confirm == "yes":
                 if db.delete(key):
@@ -571,11 +574,11 @@ def edit_value_menu(db: ConfigDB, key: str, description: str = ""):
                 print("Cancelled")
                 input("\nPress Enter to continue...")
 
-        elif choice == "3":
+        elif choice == "B":
             return
 
         else:
-            print("Invalid option. Please select 1-3.")
+            print("Invalid option. Please select E, D, or B.")
             input("\nPress Enter to continue...")
 
 
@@ -662,15 +665,16 @@ def search_config(db: ConfigDB):
         if desc:
             print(f"   {desc}")
 
-    print(f"\n{len(matches) + 1}. Back")
+    print("\nB - Back")
     print()
 
-    choice = input(f"Select setting to edit (1-{len(matches) + 1}): ").strip()
+    choice = input("Select setting to edit (number or B): ").strip().upper()
+
+    if choice == "B":
+        return
 
     try:
         choice_num = int(choice)
-        if choice_num == len(matches) + 1:
-            return
         if 1 <= choice_num <= len(matches):
             selected_key, selected_desc = matches[choice_num - 1]
             edit_value_menu(db, selected_key, selected_desc)
