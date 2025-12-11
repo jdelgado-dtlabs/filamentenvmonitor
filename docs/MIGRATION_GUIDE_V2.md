@@ -1,6 +1,8 @@
-# FilamentBox v2.0 Migration Guide
+# FSEM v2.0 Migration Guide
 
-This guide provides detailed instructions for migrating from FilamentBox v1.x to v2.0.
+**Filament Storage Environmental Manager - Migration from v1.x to v2.0**
+
+This guide provides detailed instructions for migrating from FSEM v1.x to v2.0.
 
 ---
 

@@ -29,8 +29,6 @@ TEMP_DIR=""
 # Service status flags
 MAIN_SERVICE_EXISTS=false
 MAIN_SERVICE_RUNNING=false
-WEBUI_SERVICE_EXISTS=false
-WEBUI_SERVICE_RUNNING=false
 
 # Check if running as root
 if [ "$EUID" -ne 0 ]; then 
@@ -69,11 +67,14 @@ detect_services() {
         fi
     fi
     
+    # Check for deprecated webui service and disable it if found
     if systemctl list-unit-files | grep -q "filamentbox-webui.service"; then
-        WEBUI_SERVICE_EXISTS=true
-        if systemctl is-active --quiet filamentbox-webui.service 2>/dev/null; then
-            WEBUI_SERVICE_RUNNING=true
-        fi
+        echo -e "${YELLOW}Found deprecated filamentbox-webui.service${NC}"
+        echo -e "${BLUE}The Web UI is now integrated into the main service.${NC}"
+        echo -e "${BLUE}Disabling old webui service...${NC}"
+        systemctl stop filamentbox-webui.service 2>/dev/null || true
+        systemctl disable filamentbox-webui.service 2>/dev/null || true
+        echo -e "${GREEN}✓ Deprecated service disabled${NC}"
     fi
 }
 
@@ -283,28 +284,21 @@ prepare_installation_files() {
     
     # Copy service files from install subdirectory
     cp "$INSTALL_DIR/install/filamentbox.service" "$TEMP_DIR/"
-    cp "$INSTALL_DIR/install/filamentbox-webui.service" "$TEMP_DIR/"
     cp "$INSTALL_DIR/install/nginx-filamentbox.conf" "$TEMP_DIR/"
     cp "$INSTALL_DIR/install/install_service.sh" "$TEMP_DIR/"
-    cp "$INSTALL_DIR/install/install_webui_service.sh" "$TEMP_DIR/"
 
     # Update paths in all files
     update_paths_in_file "$TEMP_DIR/filamentbox.service" "$INSTALL_DIR"
-    update_paths_in_file "$TEMP_DIR/filamentbox-webui.service" "$INSTALL_DIR"
     update_paths_in_file "$TEMP_DIR/nginx-filamentbox.conf" "$INSTALL_DIR"
     update_paths_in_file "$TEMP_DIR/install_service.sh" "$INSTALL_DIR"
-    update_paths_in_file "$TEMP_DIR/install_webui_service.sh" "$INSTALL_DIR"
 
     # Copy modified files back to install directory
     cp "$TEMP_DIR/filamentbox.service" "$INSTALL_DIR/install/"
-    cp "$TEMP_DIR/filamentbox-webui.service" "$INSTALL_DIR/install/"
     cp "$TEMP_DIR/nginx-filamentbox.conf" "$INSTALL_DIR/install/"
     cp "$TEMP_DIR/install_service.sh" "$INSTALL_DIR/install/"
-    cp "$TEMP_DIR/install_webui_service.sh" "$INSTALL_DIR/install/"
 
     # Make scripts executable
     chmod +x "$INSTALL_DIR/install/install_service.sh"
-    chmod +x "$INSTALL_DIR/install/install_webui_service.sh"
     chmod +x "$INSTALL_DIR/install/setup.sh"
 
     echo -e "${GREEN}✓ Installation files prepared${NC}"
@@ -376,23 +370,13 @@ install_services() {
     echo -e "${CYAN}═══════════════════════════════════════════════════════════${NC}"
     echo
 
-    # Install main service
-    echo -e "${BLUE}Installing main service...${NC}"
+    # Install main service (includes Web UI via orchestrator)
+    echo -e "${BLUE}Installing main service (includes Web UI)...${NC}"
     cd "$INSTALL_DIR"
     if ./install/install_service.sh; then
         echo -e "${GREEN}✓ Main service installed${NC}"
     else
         echo -e "${RED}✗ Main service installation failed${NC}"
-        return 1
-    fi
-    echo
-
-    # Install web UI service
-    echo -e "${BLUE}Installing web UI service...${NC}"
-    if ./install/install_webui_service.sh; then
-        echo -e "${GREEN}✓ Web UI service installed${NC}"
-    else
-        echo -e "${RED}✗ Web UI service installation failed${NC}"
         return 1
     fi
     echo
@@ -441,38 +425,7 @@ update_services() {
         echo
     fi
 
-    # Update web UI service
-    if [ "$WEBUI_SERVICE_EXISTS" = true ]; then
-        echo -e "${BLUE}Updating web UI service...${NC}"
-        
-        # Stop service if running
-        if [ "$WEBUI_SERVICE_RUNNING" = true ]; then
-            echo "Stopping service..."
-            systemctl stop filamentbox-webui.service
-        fi
-        
-        # Reinstall service
-        if ./install/install_webui_service.sh; then
-            echo -e "${GREEN}✓ Web UI service updated${NC}"
-            services_updated=true
-            
-            # Restart if it was running
-            if [ "$WEBUI_SERVICE_RUNNING" = true ]; then
-                echo "Restarting service..."
-                systemctl start filamentbox-webui.service
-                sleep 2
-                if systemctl is-active --quiet filamentbox-webui.service; then
-                    echo -e "${GREEN}✓ Service restarted successfully${NC}"
-                else
-                    echo -e "${RED}✗ Service failed to restart${NC}"
-                    echo "Check logs: sudo journalctl -u filamentbox-webui.service -n 50"
-                fi
-            fi
-        else
-            echo -e "${RED}✗ Web UI service update failed${NC}"
-        fi
-        echo
-    fi
+
 
     if [ "$services_updated" = true ]; then
         echo -e "${GREEN}✓ Services updated successfully${NC}"

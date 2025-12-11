@@ -1,6 +1,6 @@
-# FilamentBox v2.0 - Quick Reference Card
+# FSEM v2.0 - Quick Reference Card
 
-**One-Page Feature Summary**
+**Filament Storage Environmental Manager - One-Page Feature Summary**
 
 ---
 

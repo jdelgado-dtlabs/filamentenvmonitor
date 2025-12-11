@@ -1,4 +1,4 @@
-"""Main entry point for FilamentBox environment data logger."""
+"""Main entry point for Filament Storage Environmental Manager."""
 
 import argparse
 import logging
@@ -77,7 +77,7 @@ def main() -> None:
     """
     global _orchestrator
 
-    parser = argparse.ArgumentParser(description="FilamentBox Environment Data Logger")
+    parser = argparse.ArgumentParser(description="Filament Storage Environmental Manager")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     args = parser.parse_args()
 

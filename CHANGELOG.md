@@ -35,6 +35,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.0-rc] - 2025-12-10
 
+*Note: Final v2.0.0 stable release planned for January 2026*
+
 ### 🎉 Major Release - Complete Architectural Overhaul
 Version 2.0 represents a comprehensive redesign focused on security, scalability, modern web experience, and real-time capabilities. This release includes **10 major features**, **7 database backends**, and complete **React-based web UI** with **~125 commits** since v1.x.
 

@@ -1,4 +1,4 @@
-# FilamentBox v2.0 Release Summary
+# Filament Storage Environmental Manager v2.0 Release Summary
 
 **Major Release: Architecture Overhaul & Modern Web Experience**
 
@@ -6,10 +6,10 @@
 
 ## 📢 Announcement
 
-We're excited to announce **FilamentBox v2.0**, a major release representing months of development with **~125 commits**, **10 major features**, and a complete architectural redesign.
+We're excited to announce **Filament Storage Environmental Manager v2.0** (FSEM v2.0), a major release representing months of development with **~125 commits**, **10 major features**, and a complete architectural redesign.
 
 **Version**: 2.0.0-rc  
-**Release Date**: January 2026 (TBD)  
+**Release Date**: January 2026  
 **Repository**: https://github.com/jdelgado-dtlabs/filamentenvmonitor  
 **Branch**: `v2.0-rc`
 
@@ -520,10 +520,10 @@ cat config.db | grep -v "password\|token\|key" > /tmp/config.txt
 ## 📅 Timeline
 
 - **Dec 2024**: Development started
-- **Jan 2025**: v2.0-rc released
-- **Jan 2025**: Beta testing period
-- **Feb 2025**: v2.0.0 stable release (planned)
-- **Mar 2025**: v2.1.0 with new features (planned)
+- **Dec 2025**: v2.0-rc released
+- **Jan 2026**: Beta testing period
+- **Jan 2026**: v2.0.0 stable release (planned)
+- **Feb 2026**: v2.1.0 with new features (planned)
 
 ---
 
@@ -555,12 +555,12 @@ sudo ./install/setup.sh
 
 ---
 
-**Welcome to FilamentBox v2.0!** 🎉🚀
+**Welcome to Filament Storage Environmental Manager v2.0!** 🎉🚀
 
 *Built with ❤️ for the 3D printing community*
 
 ---
 
-*Release Date: January 2025 (TBD)*  
+*Release Date: January 2026*  
 *Version: 2.0.0-rc*  
 *License: See repository for license information*

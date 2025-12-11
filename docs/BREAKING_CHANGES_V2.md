@@ -1,6 +1,6 @@
-# FilamentBox v2.0 - Breaking Changes & Migration Requirements
+# FSEM v2.0 - Breaking Changes & Migration Requirements
 
-**Quick Reference Guide**
+**Filament Storage Environmental Manager - Quick Reference Guide**
 
 ---
 
@@ -96,7 +96,7 @@ register_callback('database.type', on_change_func)
 
 ### Must Have Before Migrating
 
-- [ ] Running FilamentBox v1.x installation
+- [ ] Running FSEM v1.x installation
 - [ ] Root/sudo access
 - [ ] 15-30 minutes for migration
 - [ ] Space to save encryption key securely

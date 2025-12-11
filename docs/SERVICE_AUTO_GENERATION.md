@@ -1,12 +1,14 @@
 # Systemd Service Auto-Generation
 
-FilamentBox v2.0+ automatically generates systemd service files configured for your environment during setup.
+**FSEM v2.0+ - Automated Service File Generation**
+
+FSEM v2.0+ automatically generates systemd service files configured for your environment during setup.
 
 ## How It Works
 
 When you run `./install/setup.sh`, the script:
 
-1. **Detects Installation Path**: Automatically determines where FilamentBox is installed
+1. **Detects Installation Path**: Automatically determines where FSEM is installed
 2. **Detects User/Group**: Uses the current user and group for service execution
 3. **Detects Vault Configuration**: Checks if HashiCorp Vault environment variables are set
 4. **Generates Service Files**: Creates `filamentbox.service` and `filamentbox-webui.service`

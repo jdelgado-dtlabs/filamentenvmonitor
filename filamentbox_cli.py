@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI interface for monitoring and controlling FilamentBox environment system.
+"""CLI interface for monitoring and controlling Filament Storage Environmental Manager.
 
 Provides real-time display of sensor readings and control states,
 with ability to manually override heater and fan controls.

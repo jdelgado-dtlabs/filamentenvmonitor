@@ -1,8 +1,10 @@
-# FilamentBox Encryption Key Security
+# FSEM Encryption Key Security
+
+**Filament Storage Environmental Manager - Configuration Encryption**
 
 ## Overview
 
-FilamentBox v2.0+ uses encrypted configuration with SQLCipher. The encryption key is automatically generated during setup and stored securely in HashiCorp Vault (if available) or a local encrypted file.
+FSEM v2.0+ uses encrypted configuration with SQLCipher. The encryption key is automatically generated during setup and stored securely in HashiCorp Vault (if available) or a local encrypted file.
 
 ## Key Generation
 

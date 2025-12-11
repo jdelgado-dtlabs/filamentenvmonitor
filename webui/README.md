@@ -1,6 +1,6 @@
-# FilamentBox Web UI
+# FSEM Web UI
 
-A modern, responsive web interface for monitoring and controlling the FilamentBox environment system.
+A modern, responsive web interface for monitoring and controlling the Filament Storage Environmental Manager.
 
 ## Features
 

@@ -1,4 +1,4 @@
-"""FilamentBox Environment Data Logger.
+"""Filament Storage Environmental Manager.
 
 Modular data collection, batching, persistence, and InfluxDB write system for
 environmental sensor data.

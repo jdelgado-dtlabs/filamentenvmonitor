@@ -1,6 +1,6 @@
-# FilamentBox Web UI - React Application
+# FSEM Web UI - React Application
 
-Modern Progressive Web App (PWA) for FilamentBox environmental monitoring system.
+Modern Progressive Web App (PWA) for Filament Storage Environmental Manager.
 
 ## Features
 
