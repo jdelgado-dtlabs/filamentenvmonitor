@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     import requests
 else:
     try:
-        import requests
+        import requests  # type: ignore[import-untyped]
     except ImportError:
         requests = None  # type: ignore[assignment]
 
