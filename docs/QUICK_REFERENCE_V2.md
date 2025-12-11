@@ -282,7 +282,7 @@ python scripts/migrate_config.py
 ### Web UI Not Loading
 ```bash
 # Check service
-sudo systemctl status filamentbox-webui.service
+sudo systemctl status filamentbox.service (webui integrated in v2.0)
 
 # Rebuild React
 cd webui/webui-react

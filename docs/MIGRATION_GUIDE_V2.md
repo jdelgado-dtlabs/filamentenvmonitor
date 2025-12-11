@@ -22,7 +22,7 @@ This guide provides detailed instructions for migrating from FSEM v1.x to v2.0.
 
 ### Prerequisites Checklist
 
-- [ ] Running FilamentBox v1.x installation
+- [ ] Running FSEM v1.x installation
 - [ ] Root/sudo access to the system
 - [ ] Backup of current configuration files
 - [ ] Note of current database connection (ensure it's accessible)
@@ -139,9 +139,8 @@ The migration is **fully automatic** and has been tested extensively.
 ```bash
 cd /opt/filamentcontrol
 
-# Stop services before updating
+# Stop service before updating
 sudo systemctl stop filamentbox.service
-sudo systemctl stop filamentbox-webui.service
 
 # Pull v2.0 code
 git fetch origin
@@ -203,7 +202,7 @@ The key is also stored in .config_key with 600 permissions.
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl start filamentbox.service
-sudo systemctl start filamentbox-webui.service
+
 ```
 
 #### Step 5: Verify Migration
@@ -219,7 +218,7 @@ See [Post-Migration Verification](#post-migration-verification)
 ```bash
 cd /opt/filamentcontrol
 sudo systemctl stop filamentbox.service
-sudo systemctl stop filamentbox-webui.service
+
 git fetch origin
 git checkout v2.0-rc
 ```
@@ -297,7 +296,7 @@ Environment="FILAMENTBOX_CONFIG_KEY=your-key-here"
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl start filamentbox.service
-sudo systemctl start filamentbox-webui.service
+
 ```
 
 ---
@@ -309,7 +308,7 @@ sudo systemctl start filamentbox-webui.service
 ```bash
 # Both services should be active and running
 sudo systemctl status filamentbox.service
-sudo systemctl status filamentbox-webui.service
+
 ```
 
 Expected output:
@@ -556,8 +555,8 @@ python scripts/config_tool.py
 
 **Check**:
 ```bash
-sudo systemctl status filamentbox-webui.service
-sudo journalctl -u filamentbox-webui.service -n 50
+
+
 ```
 
 **Common Fixes**:
@@ -565,8 +564,8 @@ sudo journalctl -u filamentbox-webui.service -n 50
 #### 1. Service Not Running
 
 ```bash
-sudo systemctl start filamentbox-webui.service
-sudo systemctl enable filamentbox-webui.service
+
+
 ```
 
 #### 2. Port Already in Use
@@ -626,7 +625,7 @@ If you need to rollback to v1.x:
 
 ```bash
 sudo systemctl stop filamentbox.service
-sudo systemctl stop filamentbox-webui.service
+
 ```
 
 ### Step 2: Restore Code
@@ -658,7 +657,7 @@ rm config.db .config_key
 sudo cp ~/filamentbox_backup_YYYYMMDD/filamentbox.service \
     /etc/systemd/system/
 
-sudo cp ~/filamentbox_backup_YYYYMMDD/filamentbox-webui.service \
+sudo cp ~/filamentbox_backup_YYYYMMDD/filamentbox.service (webui integrated in v2.0) \
     /etc/systemd/system/
 ```
 
@@ -667,7 +666,7 @@ sudo cp ~/filamentbox_backup_YYYYMMDD/filamentbox-webui.service \
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl start filamentbox.service
-sudo systemctl start filamentbox-webui.service
+
 ```
 
 ### Step 6: Verify Rollback
@@ -863,4 +862,4 @@ Once all checks pass, your migration is complete. Enjoy v2.0 features:
 4. Explore configuration tool: `python scripts/config_tool.py`
 5. Read [v2.0 Features Summary](V2.0_FEATURES_SUMMARY.md)
 
-Welcome to FilamentBox v2.0! 🎉
+Welcome to FSEM v2.0! 🎉

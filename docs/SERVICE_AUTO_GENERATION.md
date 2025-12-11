@@ -11,7 +11,7 @@ When you run `./install/setup.sh`, the script:
 1. **Detects Installation Path**: Automatically determines where FSEM is installed
 2. **Detects User/Group**: Uses the current user and group for service execution
 3. **Detects Vault Configuration**: Checks if HashiCorp Vault environment variables are set
-4. **Generates Service Files**: Creates `filamentbox.service` and `filamentbox-webui.service`
+4. **Generates Service Files**: Creates `filamentbox.service` and `filamentbox.service (webui integrated in v2.0)`
 5. **Configures Appropriately**:
    - **With Vault**: Embeds Vault environment variables in service files
    - **Without Vault**: Services will automatically use local `.config_key` file
@@ -30,7 +30,7 @@ The generated service files are customized based on your setup:
 ### Location
 ```
 <installation-path>/install/filamentbox.service
-<installation-path>/install/filamentbox-webui.service
+<installation-path>/install/filamentbox.service (webui integrated in v2.0)
 ```
 
 For example:
@@ -150,7 +150,7 @@ If you change your Vault configuration or want to regenerate service files:
 
 1. **Delete existing service files**:
    ```bash
-   rm install/filamentbox.service install/filamentbox-webui.service
+   rm install/filamentbox.service install/filamentbox.service (webui integrated in v2.0)
    ```
 
 2. **Run setup again**:
@@ -174,7 +174,7 @@ rm install/*.service
 ```bash
 # Edit service files
 nano install/filamentbox.service
-nano install/filamentbox-webui.service
+nano install/filamentbox.service (webui integrated in v2.0)
 
 # Reinstall
 sudo ./install/install_service.sh
@@ -183,7 +183,7 @@ sudo ./install/install_webui_service.sh
 # Reload and restart
 sudo systemctl daemon-reload
 sudo systemctl restart filamentbox
-sudo systemctl restart filamentbox-webui
+sudo systemctl restart filamentbox (webui integrated in v2.0)
 ```
 
 ## Vault Credential Rotation
@@ -206,7 +206,7 @@ When rotating Vault AppRole credentials:
    sudo ./install/install_service.sh
    sudo ./install/install_webui_service.sh
    sudo systemctl daemon-reload
-   sudo systemctl restart filamentbox filamentbox-webui
+   sudo systemctl restart filamentbox filamentbox (webui integrated in v2.0)
    ```
 
 ## Security Considerations

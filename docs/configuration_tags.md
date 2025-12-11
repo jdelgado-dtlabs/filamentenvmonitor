@@ -2,7 +2,7 @@
 
 ## Overview
 
-The FilamentBox configuration system supports complex values like dictionaries (JSON objects) for features such as database tags. This guide explains how to set and manage these values.
+The FSEM configuration system supports complex values like dictionaries (JSON objects) for features such as database tags. This guide explains how to set and manage these values.
 
 ## Setting Tags
 

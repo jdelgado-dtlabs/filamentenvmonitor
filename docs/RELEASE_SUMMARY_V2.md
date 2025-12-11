@@ -393,11 +393,11 @@ sudo ./install/setup.sh
 
 ```bash
 cd /opt/filamentcontrol
-sudo systemctl stop filamentbox.service filamentbox-webui.service
+sudo systemctl stop filamentbox.service filamentbox.service (webui integrated in v2.0)
 git checkout v2.0-rc
 sudo ./install/setup.sh
 # Save the encryption key!
-sudo systemctl start filamentbox.service filamentbox-webui.service
+sudo systemctl start filamentbox.service filamentbox.service (webui integrated in v2.0)
 firefox http://localhost:5000
 ```
 

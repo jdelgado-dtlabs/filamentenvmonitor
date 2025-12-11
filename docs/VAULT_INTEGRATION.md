@@ -1,6 +1,6 @@
 # HashiCorp Vault Integration - Quick Start
 
-This guide shows how to integrate FilamentBox with HashiCorp Vault for secure encryption key storage.
+This guide shows how to integrate FSEM (Filament Storage Environmental Manager) with HashiCorp Vault for secure encryption key storage.
 
 ## Why Use Vault?
 

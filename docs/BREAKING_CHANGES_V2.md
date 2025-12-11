@@ -124,7 +124,7 @@ register_callback('database.type', on_change_func)
 
 ```bash
 # 1. Stop services
-sudo systemctl stop filamentbox.service filamentbox-webui.service
+sudo systemctl stop filamentbox.service filamentbox.service (webui integrated in v2.0)
 
 # 2. Update code
 cd /opt/filamentcontrol
@@ -137,7 +137,7 @@ sudo ./install/setup.sh
 # 4. **SAVE THE ENCRYPTION KEY DISPLAYED!**
 
 # 5. Start services
-sudo systemctl start filamentbox.service filamentbox-webui.service
+sudo systemctl start filamentbox.service filamentbox.service (webui integrated in v2.0)
 
 # 6. Test
 firefox http://localhost:5000
@@ -354,16 +354,16 @@ python -c "from filamentbox.config import get; print(get('database.type'))"
 **Fix**:
 ```bash
 # Check web UI service
-sudo systemctl status filamentbox-webui.service
+sudo systemctl status filamentbox.service (webui integrated in v2.0)
 
 # If not running
-sudo systemctl start filamentbox-webui.service
+sudo systemctl start filamentbox.service (webui integrated in v2.0)
 
 # If React build missing
 cd /opt/filamentcontrol/webui/webui-react
 npm install
 npm run build
-sudo systemctl restart filamentbox-webui.service
+sudo systemctl restart filamentbox.service (webui integrated in v2.0)
 ```
 
 ---
