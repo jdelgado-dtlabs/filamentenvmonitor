@@ -1,6 +1,8 @@
 """Unit tests for the webui_server Flask application."""
 
 import json
+import sys
+import os
 from datetime import datetime
 from typing import Any, Dict, Generator
 from unittest.mock import patch
@@ -8,8 +10,11 @@ from unittest.mock import patch
 import pytest
 from flask.testing import FlaskClient
 
+# Add parent directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 # Import the Flask app
-from webui_server import app
+from webui.webui_server import app
 
 
 @pytest.fixture
@@ -44,7 +49,7 @@ def mock_control_states() -> Dict[str, Any]:
 
 def test_get_sensor(client: FlaskClient, mock_sensor_data: Dict[str, Any]) -> None:
     """Test GET /api/sensor endpoint."""
-    with patch("webui_server.get_sensor_data", return_value=mock_sensor_data):
+    with patch("webui.webui_server.get_sensor_data", return_value=mock_sensor_data):
         response = client.get("/api/sensor")
         assert response.status_code == 200
 
@@ -58,7 +63,7 @@ def test_get_sensor(client: FlaskClient, mock_sensor_data: Dict[str, Any]) -> No
 
 def test_get_controls(client: FlaskClient, mock_control_states: Dict[str, Any]) -> None:
     """Test GET /api/controls endpoint."""
-    with patch("webui_server.get_control_states", return_value=mock_control_states):
+    with patch("webui.webui_server.get_control_states", return_value=mock_control_states):
         response = client.get("/api/controls")
         assert response.status_code == 200
 
@@ -78,8 +83,8 @@ def test_get_status(
 ) -> None:
     """Test GET /api/status endpoint."""
     with (
-        patch("webui_server.get_sensor_data", return_value=mock_sensor_data),
-        patch("webui_server.get_control_states", return_value=mock_control_states),
+        patch("webui.webui_server.get_sensor_data", return_value=mock_sensor_data),
+        patch("webui.webui_server.get_control_states", return_value=mock_control_states),
     ):
         response = client.get("/api/status")
         assert response.status_code == 200
@@ -94,7 +99,7 @@ def test_get_status(
 
 def test_control_heater_on(client: FlaskClient) -> None:
     """Test POST /api/controls/heater to turn heater ON."""
-    with patch("webui_server.set_heater_manual_override") as mock_set:
+    with patch("webui.webui_server.set_heater_manual_override") as mock_set:
         response = client.post(
             "/api/controls/heater",
             data=json.dumps({"state": True}),
@@ -110,7 +115,7 @@ def test_control_heater_on(client: FlaskClient) -> None:
 
 def test_control_heater_off(client: FlaskClient) -> None:
     """Test POST /api/controls/heater to turn heater OFF."""
-    with patch("webui_server.set_heater_manual_override") as mock_set:
+    with patch("webui.webui_server.set_heater_manual_override") as mock_set:
         response = client.post(
             "/api/controls/heater",
             data=json.dumps({"state": False}),
@@ -126,7 +131,7 @@ def test_control_heater_off(client: FlaskClient) -> None:
 
 def test_control_heater_auto(client: FlaskClient) -> None:
     """Test POST /api/controls/heater to set auto mode."""
-    with patch("webui_server.set_heater_manual_override") as mock_set:
+    with patch("webui.webui_server.set_heater_manual_override") as mock_set:
         response = client.post(
             "/api/controls/heater",
             data=json.dumps({"state": None}),
@@ -165,7 +170,7 @@ def test_control_heater_invalid_json(client: FlaskClient) -> None:
 
 def test_control_fan_on(client: FlaskClient) -> None:
     """Test POST /api/controls/fan to turn fan ON."""
-    with patch("webui_server.set_fan_manual_override") as mock_set:
+    with patch("webui.webui_server.set_fan_manual_override") as mock_set:
         response = client.post(
             "/api/controls/fan",
             data=json.dumps({"state": True}),
@@ -181,7 +186,7 @@ def test_control_fan_on(client: FlaskClient) -> None:
 
 def test_control_fan_off(client: FlaskClient) -> None:
     """Test POST /api/controls/fan to turn fan OFF."""
-    with patch("webui_server.set_fan_manual_override") as mock_set:
+    with patch("webui.webui_server.set_fan_manual_override") as mock_set:
         response = client.post(
             "/api/controls/fan",
             data=json.dumps({"state": False}),
@@ -197,7 +202,7 @@ def test_control_fan_off(client: FlaskClient) -> None:
 
 def test_control_fan_auto(client: FlaskClient) -> None:
     """Test POST /api/controls/fan to set auto mode."""
-    with patch("webui_server.set_fan_manual_override") as mock_set:
+    with patch("webui.webui_server.set_fan_manual_override") as mock_set:
         response = client.post(
             "/api/controls/fan",
             data=json.dumps({"state": None}),
@@ -232,7 +237,7 @@ def test_get_sensor_with_none_timestamp(client: FlaskClient) -> None:
         "humidity": 45.2,
         "timestamp": None,
     }
-    with patch("webui_server.get_sensor_data", return_value=mock_data):
+    with patch("webui.webui_server.get_sensor_data", return_value=mock_data):
         response = client.get("/api/sensor")
         assert response.status_code == 200
 
@@ -248,7 +253,7 @@ def test_get_controls_manual_mode(client: FlaskClient) -> None:
         "fan_on": True,
         "fan_manual": False,
     }
-    with patch("webui_server.get_control_states", return_value=mock_states):
+    with patch("webui.webui_server.get_control_states", return_value=mock_states):
         response = client.get("/api/controls")
         assert response.status_code == 200
 
@@ -268,7 +273,7 @@ def test_serve_frontend(client: FlaskClient) -> None:
 
 def test_cors_headers(client: FlaskClient, mock_sensor_data: Dict[str, Any]) -> None:
     """Test that CORS headers are present."""
-    with patch("webui_server.get_sensor_data", return_value=mock_sensor_data):
+    with patch("webui.webui_server.get_sensor_data", return_value=mock_sensor_data):
         response = client.get("/api/sensor")
         # CORS headers should be present
         assert "Access-Control-Allow-Origin" in response.headers

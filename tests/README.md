@@ -1,13 +1,13 @@
-# Filament Storage Environmental Manager Tests
+# Filament Storage Environmental Manager (FSEM) Tests
 
 This directory contains the test suite for the Filament Storage Environmental Manager.
 
 ## Overview
 
-The test suite uses **pytest** and includes comprehensive unit tests for all major components including the web UI API server. All tests use mocked hardware to enable CI/CD testing without physical sensors.
+The test suite uses **pytest** and includes comprehensive unit tests for the web UI API server. All tests use mocked hardware to enable CI/CD testing without physical sensors.
 
-**Test Count**: 25 tests
-- 9 core application tests
+**Test Count**: 21 tests
+- 5 core application tests (tag handling)
 - 16 web UI server tests
 
 ## Running Tests
@@ -29,12 +29,6 @@ pytest tests/ --cov=filamentbox --cov=webui_server
 
 ### Specific Test Files
 ```bash
-# Data point and tag handling
-pytest tests/test_data_point_tags.py -v
-
-# InfluxDB failure scenarios
-pytest tests/test_influx_failure.py -v
-
 # Tag serialization through queue
 pytest tests/test_tags_through_queue.py -v
 
@@ -46,18 +40,8 @@ pytest tests/test_webui_server.py -v
 
 ### Core Application Tests
 
-#### `test_data_point_tags.py`
-Tests for tag formatting and inclusion in data points:
-- **`test_tag_format_json_compatible`**: Ensures tags are JSON-compatible
-- **`test_tags_included_when_present`**: Verifies tags are included when configured
-- **`test_tags_omitted_when_not_present`**: Confirms tags are omitted when not configured
-
-#### `test_influx_failure.py`
-Tests for failure handling and persistence:
-- **`test_influx_writer_alert_and_persist`**: Tests exponential backoff, alert threshold, and SQLite persistence when InfluxDB writes fail
-
 #### `test_tags_through_queue.py`
-Tests for tag preservation through the queue system:
+Tests for tag preservation through the queue system (tags still used for InfluxDB metadata):
 - **`test_tags_survive_queue_cycle`**: Ensures tags survive queue operations
 - **`test_tags_in_batch_list`**: Verifies tags in batch lists
 - **`test_tags_in_batch_serialization`**: Tests tag serialization
