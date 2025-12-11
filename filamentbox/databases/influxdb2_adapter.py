@@ -4,7 +4,7 @@ Implements the TimeSeriesDB interface for InfluxDB 2.x using the influxdb-client
 """
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from influxdb_client import InfluxDBClient, Point
@@ -41,12 +41,12 @@ class InfluxDB2Adapter(TimeSeriesDB):
             )
 
         self.config = config
-        self.org = config.get("org")
-        self.bucket = config.get("bucket")
+        self.org = cast(str, config.get("org"))
+        self.bucket = cast(str, config.get("bucket"))
 
         self.client = InfluxDBClient(
             url=config.get("url", "http://localhost:8086"),
-            token=config.get("token"),
+            token=cast(str, config.get("token")),
             org=self.org,
             verify_ssl=config.get("verify_ssl", True),
         )
