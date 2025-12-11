@@ -9,6 +9,7 @@ import {
   isNotificationSupported,
   getNotificationPermission 
 } from '../utils/notifications';
+import { getCurrentTheme, setTheme } from '../utils/theme';
 import './GaugeEditor.css';
 
 export function SettingsEditor({ onClose, onMessage, onSave, useFahrenheit, setUseFahrenheit, threads }) {
@@ -22,6 +23,7 @@ export function SettingsEditor({ onClose, onMessage, onSave, useFahrenheit, setU
   const [saving, setSaving] = useState(false);
   const [notificationsEnabled, setNotificationsEnabledState] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState('default');
+  const [currentTheme, setCurrentTheme] = useState('light');
 
   useEffect(() => {
     loadConfig();
@@ -30,6 +32,8 @@ export function SettingsEditor({ onClose, onMessage, onSave, useFahrenheit, setU
     if (isNotificationSupported()) {
       setNotificationPermission(getNotificationPermission());
     }
+    // Load current theme
+    setCurrentTheme(getCurrentTheme());
   }, []);
 
   const loadConfig = async () => {
@@ -93,6 +97,11 @@ export function SettingsEditor({ onClose, onMessage, onSave, useFahrenheit, setU
     onMessage?.('Browser notifications disabled', 'success');
   };
 
+  const handleThemeChange = (theme) => {
+    setTheme(theme);
+    setCurrentTheme(theme);
+  };
+
   const isDatabaseThreadRunning = threads?.database_writer?.running ?? false;
   const isHeaterThreadRunning = threads?.heating_control?.running ?? false;
   const isFanThreadRunning = threads?.humidity_control?.running ?? false;
@@ -124,23 +133,36 @@ export function SettingsEditor({ onClose, onMessage, onSave, useFahrenheit, setU
         <div className="gauge-editor-content">
           <div className="gauge-editor-field">
             <label>Temperature Unit</label>
-            <div className="toggle-switch-container horizontal">
-              <button
-                className={`toggle-option ${!useFahrenheit ? 'active' : ''}`}
-                onClick={() => setUseFahrenheit(false)}
-                disabled={saving}
+            <p className="threshold-info" style={{ textAlign: 'center', marginBottom: '0.75rem' }}>Temperature display unit for gauges and readings</p>
+            <div className="theme-slider-container">
+              <div 
+                className={`theme-slider ${useFahrenheit ? 'dark' : 'light'}`}
+                onClick={() => setUseFahrenheit(!useFahrenheit)}
               >
-                °C
-              </button>
-              <button
-                className={`toggle-option ${useFahrenheit ? 'active' : ''}`}
-                onClick={() => setUseFahrenheit(true)}
-                disabled={saving}
-              >
-                °F
-              </button>
+                <div className="theme-slider-track">
+                  <span className="theme-option left">°C Celsius</span>
+                  <span className="theme-option right">°F Fahrenheit</span>
+                </div>
+                <div className="theme-slider-thumb"></div>
+              </div>
             </div>
-            <p className="threshold-info">Temperature display unit for gauges and readings</p>
+          </div>
+
+          <div className="gauge-editor-field">
+            <label>Theme</label>
+            <p className="threshold-info" style={{ textAlign: 'center', marginBottom: '0.75rem' }}>Choose your preferred color scheme</p>
+            <div className="theme-slider-container">
+              <div 
+                className={`theme-slider ${currentTheme === 'dark' ? 'dark' : 'light'}`}
+                onClick={() => handleThemeChange(currentTheme === 'dark' ? 'light' : 'dark')}
+              >
+                <div className="theme-slider-track">
+                  <span className="theme-option left">☀️ Light</span>
+                  <span className="theme-option right">🌙 Dark</span>
+                </div>
+                <div className="theme-slider-thumb"></div>
+              </div>
+            </div>
           </div>
 
           <div className="gauge-editor-field">
@@ -158,12 +180,12 @@ export function SettingsEditor({ onClose, onMessage, onSave, useFahrenheit, setU
                   disabled={saving || isDatabaseBlocked}
                 />
                 <span>Database Card</span>
+                {isDatabaseBlocked && (
+                  <span className="threshold-info" style={{ color: '#f39c12', marginLeft: '0.5rem', fontSize: '0.85rem' }}>
+                    ⚠️ {isDatabaseThreadRunning ? 'Thread running - ' : ''}Stop and disable first
+                  </span>
+                )}
               </label>
-              {isDatabaseBlocked && (
-                <p className="threshold-info" style={{ color: '#f39c12', marginTop: '0.25rem' }}>
-                  ⚠️ {isDatabaseThreadRunning ? 'Thread is running - ' : ''}Stop and disable database first
-                </p>
-              )}
             </div>
           </div>
 
@@ -177,12 +199,12 @@ export function SettingsEditor({ onClose, onMessage, onSave, useFahrenheit, setU
                   disabled={saving || isHeaterBlocked}
                 />
                 <span>Heater Card</span>
+                {isHeaterBlocked && (
+                  <span className="threshold-info" style={{ color: '#f39c12', marginLeft: '0.5rem', fontSize: '0.85rem' }}>
+                    ⚠️ {isHeaterThreadRunning ? 'Thread running - ' : ''}Stop and disable first
+                  </span>
+                )}
               </label>
-              {isHeaterBlocked && (
-                <p className="threshold-info" style={{ color: '#f39c12', marginTop: '0.25rem' }}>
-                  ⚠️ {isHeaterThreadRunning ? 'Thread is running - ' : ''}Stop and disable heater control first
-                </p>
-              )}
             </div>
           </div>
 
@@ -196,18 +218,15 @@ export function SettingsEditor({ onClose, onMessage, onSave, useFahrenheit, setU
                   disabled={saving || isFanBlocked}
                 />
                 <span>Fan Card</span>
+                {isFanBlocked && (
+                  <span className="threshold-info" style={{ color: '#f39c12', marginLeft: '0.5rem', fontSize: '0.85rem' }}>
+                    ⚠️ {isFanThreadRunning ? 'Thread running - ' : ''}Stop and disable first
+                  </span>
+                )}
               </label>
-              {isFanBlocked && (
-                <p className="threshold-info" style={{ color: '#f39c12', marginTop: '0.25rem' }}>
-                  ⚠️ {isFanThreadRunning ? 'Thread is running - ' : ''}Stop and disable fan control first
-                </p>
-              )}
             </div>
           </div>
-        </div>
 
-        <div className="gauge-editor-section">
-          <h4>Notifications</h4>
           <div className="gauge-editor-field">
             <label>Browser Notifications</label>
             {!isNotificationSupported() ? (

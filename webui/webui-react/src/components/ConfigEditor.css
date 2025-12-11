@@ -1,7 +1,7 @@
 .config-section {
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid #ecf0f1;
+  border-top: 1px solid var(--border-color-light);
   display: none;
 }
 
@@ -16,7 +16,7 @@
 .config-item label {
   display: block;
   font-size: 0.85rem;
-  color: #7f8c8d;
+  color: var(--text-secondary);
   margin-bottom: 6px;
   font-weight: 500;
 }
@@ -25,27 +25,29 @@
 .config-item select {
   width: 100%;
   padding: 10px;
-  border: 1px solid #dcdde1;
+  border: 1px solid var(--input-border);
   border-radius: 4px;
   font-size: 0.9rem;
   font-family: inherit;
   transition: border-color 0.2s;
+  background: var(--input-bg);
+  color: var(--text-primary);
 }
 
 .config-item input:focus,
 .config-item select:focus {
   outline: none;
-  border-color: #3498db;
+  border-color: var(--input-focus);
 }
 
 .config-item input.error,
 .config-item select.error {
-  border-color: #e74c3c;
+  border-color: var(--color-error);
 }
 
 .config-error {
   font-size: 0.75rem;
-  color: #e74c3c;
+  color: var(--color-error);
   margin-top: 4px;
   display: none;
 }
@@ -56,7 +58,7 @@
 
 .config-help {
   font-size: 0.75rem;
-  color: #95a5a6;
+  color: var(--text-tertiary);
   margin-top: 4px;
 }
 

@@ -4,8 +4,10 @@ Provides REST API endpoints for sensor data and control states,
 plus serves the React frontend.
 """
 
+import json
 import logging
 import os
+import time
 from datetime import datetime
 from typing import Tuple, Union
 
@@ -452,6 +454,102 @@ def delete_notifications() -> Response:
     """
     clear_notifications()
     return jsonify({"message": "Notifications cleared", "success": True})
+
+
+@app.route("/api/stream")
+def stream_updates() -> Response:
+    """Server-Sent Events endpoint for real-time updates.
+
+    Streams combined sensor, control, database, and thread status updates
+    to the client every second. Clients should use EventSource API to connect.
+
+    Returns:
+        SSE stream with JSON data events
+    """
+
+    def generate():
+        """Generate SSE events with system status updates."""
+        while True:
+            try:
+                # Get all status data
+                sensor_data = get_sensor_data()
+                control_states = get_control_states()
+                db_status = get_database_status()
+                threads = get_thread_status()
+
+                # Calculate sensor age
+                sensor_age = None
+                if sensor_data["timestamp"]:
+                    sensor_age = datetime.now().timestamp() - sensor_data["timestamp"]
+
+                # Calculate database last write age
+                db_last_write_age = None
+                if db_status["last_write_time"]:
+                    db_last_write_age = datetime.now().timestamp() - db_status["last_write_time"]
+
+                # Combine all data into one update
+                update = {
+                    "sensor": {
+                        "temperature_c": sensor_data["temperature_c"],
+                        "temperature_f": sensor_data["temperature_f"],
+                        "humidity": sensor_data["humidity"],
+                        "timestamp": sensor_data["timestamp"],
+                        "age": sensor_age,
+                    },
+                    "controls": {
+                        "heater": {
+                            "on": control_states["heater_on"],
+                            "manual": control_states["heater_manual"],
+                            "mode": "manual"
+                            if control_states["heater_manual"] is not None
+                            else "auto",
+                        },
+                        "fan": {
+                            "on": control_states["fan_on"],
+                            "manual": control_states["fan_manual"],
+                            "mode": "manual"
+                            if control_states["fan_manual"] is not None
+                            else "auto",
+                        },
+                    },
+                    "database": {
+                        "type": db_status.get("database_type", "none"),
+                        "enabled": db_status.get("enabled", False),
+                        "storing_data": db_status.get("enabled", False)
+                        and db_status.get("database_type", "none") != "none",
+                        "last_write_time": db_status.get("last_write_time"),
+                        "last_write_age": db_last_write_age,
+                        "writer_alive": db_status.get("writer_alive", False),
+                        "write_failures": db_status.get("write_failures", 0),
+                    },
+                    "threads": threads,
+                }
+
+                # Send SSE formatted message
+                yield f"data: {json.dumps(update)}\n\n"
+
+                # Wait 1 second before next update
+                time.sleep(1)
+
+            except GeneratorExit:
+                # Client disconnected
+                logger.info("SSE client disconnected")
+                break
+            except Exception as e:
+                logger.error(f"Error in SSE stream: {e}")
+                # Send error event and continue
+                yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
+                time.sleep(1)
+
+    return Response(
+        generate(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @app.route("/")

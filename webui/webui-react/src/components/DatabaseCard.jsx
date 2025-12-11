@@ -55,6 +55,10 @@ export function DatabaseCard({ dbStatus, threads, config, onMessage, onUpdate })
       <div className="readings-horizontal">
         <Reading label="Type" value={<span style={{ fontSize: '1.1rem' }}>{dbType}</span>} />
         <Reading
+          label="Last Write"
+          value={<span style={{ fontSize: '0.9rem' }}>{dbStatus?.storing_data && dbStatus?.last_write_time ? formatAge(dbStatus.last_write_age) : '—'}</span>}
+        />
+        <Reading
           label="Status"
           value={
             <StatusIndicator
@@ -65,12 +69,6 @@ export function DatabaseCard({ dbStatus, threads, config, onMessage, onUpdate })
           }
         />
       </div>
-      {dbStatus?.storing_data && dbStatus?.last_write_time && (
-        <Reading
-          label="Last Write"
-          value={<span style={{ fontSize: '0.9rem' }}>{formatAge(dbStatus.last_write_age)}</span>}
-        />
-      )}
       {configOpen && (
         <DatabaseConfigEditor
           onClose={() => setConfigOpen(false)}

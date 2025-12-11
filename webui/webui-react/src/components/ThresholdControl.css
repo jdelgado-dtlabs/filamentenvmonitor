@@ -4,7 +4,7 @@
   justify-content: space-between;
   margin: 12px 0;
   padding: 12px;
-  background: #f8f9fa;
+  background: var(--bg-tertiary);
   border-radius: 4px;
   flex-wrap: wrap;
   gap: 8px;
@@ -15,7 +15,7 @@
 
 .threshold-label {
   font-size: 0.85rem;
-  color: #7f8c8d;
+  color: var(--text-secondary);
   font-weight: 500;
   flex: 0 0 auto;
 }
@@ -32,7 +32,7 @@
 .threshold-value {
   font-size: 1.2rem;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text-primary);
   min-width: 60px;
   text-align: center;
   cursor: pointer;
@@ -43,25 +43,25 @@
 }
 
 .threshold-value:hover {
-  background-color: #e9ecef;
+  background-color: var(--bg-primary);
 }
 
 .threshold-input {
   font-size: 1.2rem;
   font-weight: 600;
-  color: #2c3e50;
+  color: var(--text-primary);
   min-width: 60px;
   text-align: center;
   padding: 4px 8px;
-  border: 2px solid #3498db;
+  border: 2px solid var(--input-focus);
   border-radius: 4px;
-  background: white;
+  background: var(--input-bg);
   flex-shrink: 0;
 }
 
 .threshold-input:focus {
   outline: none;
-  border-color: #2980b9;
+  border-color: var(--btn-primary-hover);
 }
 
 .threshold-buttons {

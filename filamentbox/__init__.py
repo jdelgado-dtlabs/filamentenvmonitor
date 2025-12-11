@@ -9,26 +9,26 @@ from typing import Any, Callable, Optional
 from .config import get, load_config
 from .logging_config import configure_logging
 
-# Import influx_writer conditionally - may not be available during migration
+# Import database_writer - provides database-agnostic write functionality
 try:
-    from .influx_writer import enqueue_data_point, register_alert_handler, wait_for_queue_empty
+    from .database_writer import enqueue_data_point, register_alert_handler, wait_for_queue_empty
 
-    _has_influx_writer = True
+    _has_database_writer = True
 except ImportError:
-    # Provide stub functions if influxdb is not installed
+    # Provide stub functions if database modules are not installed
     def enqueue_data_point(data_point: dict[str, Any]) -> None:
-        """Stub function when influxdb is not available."""
+        """Stub function when database dependencies are not available."""
         pass
 
     def register_alert_handler(fn: Callable[[dict[str, Any]], None]) -> None:
-        """Stub function when influxdb is not available."""
+        """Stub function when database dependencies are not available."""
         pass
 
     def wait_for_queue_empty() -> None:
-        """Stub function when influxdb is not available."""
+        """Stub function when database dependencies are not available."""
         pass
 
-    _has_influx_writer = False
+    _has_database_writer = False
 
 # Import other modules that may have dependencies
 try:

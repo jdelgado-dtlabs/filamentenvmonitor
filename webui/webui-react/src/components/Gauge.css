@@ -16,7 +16,7 @@
 }
 
 .gauge-value {
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 700;
 }
 
@@ -31,13 +31,13 @@
   width: 100%;
   max-width: 120px;
   font-size: 0.75rem;
-  color: #95a5a6;
+  color: var(--text-tertiary);
   margin-top: -8px;
 }
 
 .gauge-label {
   font-size: 0.8rem;
-  color: #7f8c8d;
+  color: var(--text-secondary);
   margin-top: 4px;
   font-weight: 500;
 }
@@ -45,7 +45,7 @@
 .gauge-edit-btn {
   background: none;
   border: none;
-  color: #95a5a6;
+  color: var(--text-tertiary);
   cursor: pointer;
   padding: 2px 6px;
   font-size: 0.75rem;
@@ -55,6 +55,6 @@
 }
 
 .gauge-edit-btn:hover {
-  color: #3498db;
-  background: #ecf0f1;
+  color: var(--btn-primary-bg);
+  background: var(--bg-tertiary);
 }

@@ -1,16 +1,103 @@
-# React + Vite
+# FilamentBox Web UI - React Application
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Modern Progressive Web App (PWA) for FilamentBox environmental monitoring system.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **Real-time updates** via Server-Sent Events (SSE)
+- **Dark mode** with OS preference detection
+- **Notifications** - Browser notifications + in-app panel
+- **Progressive Web App** - Install as native app
+- **Responsive design** - Works on desktop and mobile
+- **Offline support** - Service worker caching
 
-## React Compiler
+## Technology Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **React 19.2** - UI framework
+- **Vite 7.2** - Build tool and dev server
+- **React Router 7.10** - Client-side routing
+- **PWA Plugin** - Service worker and manifest generation
+- **ESLint** - Code quality and consistency
 
-## Expanding the ESLint configuration
+## Development
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+# Install dependencies
+npm install
+
+# Start development server with HMR
+npm run dev
+
+# Build for production
+npm run build
+
+# Preview production build
+npm run preview
+
+# Lint code
+npm run lint
+```
+
+## Project Structure
+
+```
+src/
+├── components/     # React components
+│   ├── Card.jsx           # Card layout component
+│   ├── Gauge.jsx          # Circular gauge for sensors
+│   ├── SensorCard.jsx     # Temperature/humidity display
+│   ├── DatabaseCard.jsx   # Database status
+│   ├── HeaterCard.jsx     # Heater control
+│   ├── FanCard.jsx        # Fan control
+│   └── ...               # Config editors, buttons, etc.
+├── hooks/          # Custom React hooks
+│   ├── usePolling.js      # Polling hook for config
+│   └── useServerEvents.js # SSE connection hook
+├── services/       # API services
+│   └── api.js             # Fetch wrappers for backend
+├── utils/          # Utility functions
+│   ├── theme.js           # Theme management
+│   └── notifications.js   # Browser notification API
+├── App.jsx         # Main application component
+├── main.jsx        # React entry point
+├── index.css       # Global styles
+└── theme.css       # Theme variables (light/dark)
+```
+
+## Key Components
+
+### Real-Time Updates (SSE)
+The app uses Server-Sent Events for real-time data:
+- `/api/stream` - Combined status stream (sensor, controls, database, threads)
+- Updates pushed every 1 second
+- Automatic reconnection with exponential backoff
+
+### Theme System
+Three modes: Light, Dark, Auto
+- Auto mode follows OS `prefers-color-scheme`
+- Persisted in localStorage
+- Dynamic switching without reload
+
+### Notifications
+- Browser notifications for important events
+- In-app notification panel with history
+- Permission request flow
+- Automatic fallback if unsupported
+
+## Build Configuration
+
+See [vite.config.js](vite.config.js) for:
+- React plugin configuration
+- PWA settings
+- Build optimizations
+
+## Browser Support
+
+- Modern browsers with ES2020+ support
+- EventSource API for SSE
+- Service Worker API for PWA
+- Notification API for browser notifications
+
+## License
+
+Same as parent project.

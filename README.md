@@ -8,7 +8,27 @@
 ![Release](https://github.com/jdelgado-dtlabs/filamentenvmonitor/actions/workflows/release.yml/badge.svg)
 [![Latest Release](https://img.shields.io/github/v/release/jdelgado-dtlabs/filamentenvmonitor?label=latest%20release)](https://github.com/jdelgado-dtlabs/filamentenvmonitor/releases/latest)
 
-A Python 3.13 application for monitoring and controlling temperature and humidity in 3D printer filament storage environments. Supports multiple sensor types (BME280, DHT22) and multiple time-series databases with encrypted configuration, optional HashiCorp Vault integration, robust data collection, batching, active environment control, and both CLI and Web UI interfaces.
+A Python 3.13 application for monitoring and controlling temperature and humidity in 3D printer filament storage environments. Supports multiple sensor types (BME280, DHT22) and multiple time-series databases with encrypted configuration, optional HashiCorp Vault integration, robust data collection, batching, active environment control, and modern real-time web UI.
+
+---
+
+## 🚀 What's New in v2.0
+
+### Major Features
+- **🌐 Modern React Web UI** - Progressive Web App with offline support, dark mode, real-time updates
+- **⚡ Real-Time Server-Sent Events** - Live sensor data, notifications, and status updates without polling
+- **🔔 Comprehensive Notifications** - Browser notifications + in-app notification panel with history
+- **🎨 Dark Mode Theme** - Auto-detect OS preference or manual toggle with persistent settings
+- **🔄 Hot-Reload Configuration** - Change settings without service restart via config watcher
+- **🏗️ Master Thread Orchestrator** - Centralized lifecycle management, eliminates file-based IPC
+- **🔐 Encrypted Configuration** - SQLCipher database with 256-bit AES encryption
+- **🔑 HashiCorp Vault Integration** - Enterprise-grade secret management (optional)
+- **📊 7 Database Backends** - InfluxDB (v1/v2/v3), Prometheus, TimescaleDB, VictoriaMetrics, None
+- **🎮 Thread Control via Web UI** - Restart/start/stop threads remotely without SSH
+
+[See Full v2.0 Features](docs/V2.0_FEATURES_SUMMARY.md) | [Migration Guide](CHANGELOG.md#-migration-path-from-v1x)
+
+---
 
 ## Highlights (v2.0)
 - **🔐 Encrypted Configuration**: SQLCipher-based encrypted database with 256-bit AES encryption
@@ -24,7 +44,37 @@ A Python 3.13 application for monitoring and controlling temperature and humidit
 - Temperature and humidity control with GPIO relay support
 
 ## Features
-- **🔐 Security & Configuration**:
+
+### 🌐 Modern Web Experience
+- **React-Based Progressive Web App (PWA)**:
+  - Install as native app on mobile/desktop
+  - Offline support with service worker caching
+  - Component-based architecture with modern UX
+  - Code splitting for fast loading
+  - Responsive design for all screen sizes
+  
+- **Real-Time Updates via Server-Sent Events (SSE)**:
+  - Live sensor readings without polling
+  - Instant control state synchronization
+  - Real-time database health monitoring
+  - Thread status updates
+  - Push notifications delivery
+  
+- **Comprehensive Notification System**:
+  - OS-level browser notifications (desktop/mobile toasters)
+  - In-app notification panel with history
+  - Thread state change alerts
+  - Configuration update confirmations
+  - Error and warning notifications
+  - Color-coded by severity
+
+- **Dark Mode Theme**:
+  - Light, Dark, and Auto (follows OS preference)
+  - Persistent across sessions
+  - Smooth theme transitions
+  - CSS custom properties for easy customization
+
+### 🔐 Security & Configuration
   - Encrypted configuration database (SQLCipher with 256-bit AES)
   - Auto-generated cryptographically secure encryption keys
   - HashiCorp Vault integration for enterprise deployments
@@ -32,7 +82,35 @@ A Python 3.13 application for monitoring and controlling temperature and humidit
   - Automatic migration from legacy YAML/.env files
   - No plain-text passwords or credentials
   
-- **📊 Database Flexibility**:
+- **HashiCorp Vault Integration**:
+  - Optional enterprise-grade secret management
+  - Token and AppRole authentication
+  - Automatic key retrieval with priority fallback
+  - Interactive configuration during setup
+  
+- **Hot-Reload Configuration Changes**:
+  - Background watcher monitors config database
+  - Automatic reload when settings updated
+  - No service restart needed for most changes
+  - Callback system for dependent components
+  
+### 🏗️ Architecture & Infrastructure
+  
+- **Master Thread Orchestrator**:
+  - Centralized thread lifecycle management
+  - Eliminates file-based IPC (uses direct queues)
+  - Automatic health monitoring and recovery
+  - Graceful shutdown coordination
+  - Manages all worker threads
+  
+- **Thread Control via Web UI**:
+  - Restart/start/stop threads remotely
+  - Real-time status monitoring
+  - No SSH access required
+  - Graceful thread restarts without full service restart
+  - API endpoints: `GET /api/threads`, `POST /api/threads/{name}/restart`
+  
+### 📊 Database Flexibility
   - **InfluxDB v1.x**: Traditional HTTP API with username/password
   - **InfluxDB v2.x**: Modern API with token/bucket/org authentication
   - **InfluxDB v3.x**: Cloud/serverless with database/token
@@ -41,11 +119,28 @@ A Python 3.13 application for monitoring and controlling temperature and humidit
   - **VictoriaMetrics**: High-performance metrics database
   - **None**: Sensor-only mode without database storage
   
+- **Database Abstraction Layer**:
+  - Unified interface for all backends
+  - Backend-specific optimizations
+  - Easy switching via configuration
+  - Factory pattern for adapter creation
+  
+- **Universal Tag Management**:
+  - Tag support across all database backends
+  - Interactive tag editor in config tool
+  - JSON/dict storage in encrypted config
+  - Database-specific tag handling (InfluxDB tags, Prometheus labels, etc.)
+  
+### 🔬 Monitoring & Control
+  
 - **Multi-sensor support**: BME280 (I2C) and DHT22 (GPIO) with automatic detection
 - **Temperature control**: Optional GPIO relay control for heating with configurable thresholds
 - **Humidity control**: Optional GPIO relay control for exhaust fan with configurable thresholds
-- **Web UI**: Modern, responsive web interface accessible from any browser
+- **Modern Web UI**: Real-time React-based interface with SSE, notifications, dark mode, PWA support
 - **CLI interface**: Real-time monitoring and manual control of heater/fan with curses-based UI
+
+### 🚀 Production Features
+
 - **Reliable data collection**: Configurable intervals with graceful error handling
 - **Batched writes**: Optimized database writes with size and time-based flush triggers
 - **Automatic recovery**: SQLite persistence of unsent batches across restarts
@@ -58,14 +153,22 @@ A Python 3.13 application for monitoring and controlling temperature and humidit
 
 ## Documentation
 
+### v2.0 Feature Documentation
+- **[v2.0 Features Summary](docs/V2.0_FEATURES_SUMMARY.md)** - Comprehensive overview of all v2.0 features
 - **[Encryption Key Security](docs/ENCRYPTION_KEY_SECURITY.md)** - Key storage, loading priority, and security best practices
 - **[Vault Integration](docs/VAULT_INTEGRATION.md)** - HashiCorp Vault setup and configuration guide
 - **[Service Auto-Generation](docs/SERVICE_AUTO_GENERATION.md)** - Systemd service file generation
+- **[Configuration Tags](docs/configuration_tags.md)** - Tag management for all database backends
+
+### General Documentation
 - **[Installation Guide](install/INSTALL.md)** ([PDF](install/INSTALL.pdf)) - Complete installation and configuration guide
 - **[FilamentBox Core Module](filamentbox/README.md)** - Detailed module architecture and component documentation
 - **[Tests](tests/README.md)** - Complete testing documentation and guidelines
 - **[Web UI](webui/README.md)** - Web interface API documentation
+- **[React Web UI](webui/webui-react/README_REACT.md)** - React PWA development and deployment
 - **[CHANGELOG](CHANGELOG.md)** - Version history and release notes
+
+---
 
 ## Quick Start
 

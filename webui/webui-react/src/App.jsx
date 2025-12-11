@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { MessageBanner } from './components/MessageBanner';
 import { SensorCard } from './components/SensorCard';
@@ -8,6 +8,7 @@ import { FanCard } from './components/FanCard';
 import { SettingsEditor } from './components/SettingsEditor';
 import { NotificationPanel } from './components/NotificationPanel';
 import { usePolling } from './hooks/usePolling';
+import { useServerEvents } from './hooks/useServerEvents';
 import { api } from './services/api';
 import { 
   showSuccessNotification, 
@@ -19,6 +20,7 @@ import {
   requestNotificationPermission,
   setNotificationsEnabled as setNotificationsEnabledPref
 } from './utils/notifications';
+import { initializeTheme } from './utils/theme';
 import './App.css';
 
 function Dashboard() {
@@ -35,6 +37,59 @@ function Dashboard() {
   const [showHeater, setShowHeater] = useState(true);
   const [showFan, setShowFan] = useState(true);
   const [viewedNotifications, setViewedNotifications] = useState(new Set());
+  
+  // Real-time data from SSE
+  const [status, setStatus] = useState(null);
+  const [dbStatus, setDbStatus] = useState(null);
+  const [threads, setThreads] = useState(null);
+
+  // Handle SSE updates
+  const handleStreamUpdate = useCallback((data) => {
+    if (data.sensor && data.controls) {
+      setStatus({
+        sensor: data.sensor,
+        controls: data.controls,
+      });
+    }
+    if (data.database) {
+      setDbStatus(data.database);
+    }
+    if (data.threads) {
+      setThreads(data.threads);
+    }
+  }, []);
+
+  // Connect to SSE stream for real-time updates
+  const { connected: sseConnected, error: sseError } = useServerEvents(
+    '/api/stream',
+    handleStreamUpdate,
+    (error) => {
+      console.error('SSE connection error:', error);
+    }
+  );
+
+  // Still use polling for config (changes less frequently)
+  const { data: dataCollectionConfig } = usePolling(() => api.getConfigSection('data_collection'), 5000);
+  const { data: databaseConfig } = usePolling(() => api.getConfigSection('database'), 5000);
+  const { data: heatingConfig } = usePolling(() => api.getConfigSection('heating_control'), 5000);
+  const { data: humidityConfig } = usePolling(() => api.getConfigSection('humidity_control'), 5000);
+  const { data: uiConfig } = usePolling(() => api.getConfigSection('ui'), 5000);
+
+  // Manual refetch function for after making changes
+  const refetchStatus = useCallback(async () => {
+    // SSE will automatically update, but we can force a fetch if needed
+    try {
+      const newStatus = await api.getStatus();
+      setStatus(newStatus);
+    } catch (error) {
+      console.error('Failed to refetch status:', error);
+    }
+  }, []);
+
+  // Initialize theme on mount
+  useEffect(() => {
+    initializeTheme();
+  }, []);
 
   // Add/remove class from body for kiosk mode
   useEffect(() => {
@@ -62,15 +117,6 @@ function Dashboard() {
     };
     attemptAutoEnable();
   }, []);
-
-  const { data: status, refetch: refetchStatus } = usePolling(() => api.getStatus(), 2000);
-  const { data: dbStatus } = usePolling(() => api.getDatabase(), 2000);
-  const { data: threads } = usePolling(() => api.getThreads(), 2000);
-  const { data: dataCollectionConfig } = usePolling(() => api.getConfigSection('data_collection'), 2000);
-  const { data: databaseConfig } = usePolling(() => api.getConfigSection('database'), 2000);
-  const { data: heatingConfig } = usePolling(() => api.getConfigSection('heating_control'), 2000);
-  const { data: humidityConfig } = usePolling(() => api.getConfigSection('humidity_control'), 2000);
-  const { data: uiConfig } = usePolling(() => api.getConfigSection('ui'), 2000);
 
   // Poll for backend notifications
   const { data: notificationsData } = usePolling(() => api.getNotifications(5), 3000);

@@ -1,0 +1,125 @@
+/* Theme Variables - Light and Dark Mode */
+
+:root {
+  /* Light Mode Colors (Default) */
+  --bg-primary: #f5f7fa;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #fafbfc;
+  --bg-card: #ffffff;
+  --bg-header: #ffffff;
+  --bg-overlay: rgba(0, 0, 0, 0.5);
+  
+  --text-primary: #2c3e50;
+  --text-secondary: #7f8c8d;
+  --text-tertiary: #95a5a6;
+  --text-inverse: #ffffff;
+  
+  --border-color: #e0e0e0;
+  --border-color-light: #f0f0f0;
+  --border-color-dark: #d0d0d0;
+  
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.15);
+  
+  /* Status Colors (same in both modes) */
+  --color-success: #27ae60;
+  --color-error: #e74c3c;
+  --color-warning: #f39c12;
+  --color-info: #3498db;
+  
+  /* Button Colors */
+  --btn-primary-bg: #3498db;
+  --btn-primary-hover: #2980b9;
+  --btn-success-bg: #27ae60;
+  --btn-success-hover: #229954;
+  --btn-danger-bg: #e74c3c;
+  --btn-danger-hover: #c0392b;
+  --btn-warning-bg: #f39c12;
+  --btn-warning-hover: #e67e22;
+  --btn-secondary-bg: #95a5a6;
+  --btn-secondary-hover: #7f8c8d;
+  
+  /* Gauge Colors */
+  --gauge-bg: #ecf0f1;
+  --gauge-text: #2c3e50;
+  --gauge-needle: #e74c3c;
+  
+  /* Input Colors */
+  --input-bg: #ffffff;
+  --input-border: #ddd;
+  --input-focus: #3498db;
+  --input-disabled-bg: #f5f5f5;
+  --input-disabled-text: #999;
+  
+  /* Card specific */
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  --card-hover-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+[data-theme="dark"] {
+  /* Dark Mode Colors */
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --bg-tertiary: #242424;
+  --bg-card: #2d2d2d;
+  --bg-header: #1e1e1e;
+  --bg-overlay: rgba(0, 0, 0, 0.7);
+  
+  --text-primary: #e0e0e0;
+  --text-secondary: #b0b0b0;
+  --text-tertiary: #808080;
+  --text-inverse: #1a1a1a;
+  
+  --border-color: #404040;
+  --border-color-light: #353535;
+  --border-color-dark: #505050;
+  
+  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.5);
+  
+  /* Status Colors (slightly adjusted for dark mode) */
+  --color-success: #2ecc71;
+  --color-error: #e74c3c;
+  --color-warning: #f39c12;
+  --color-info: #3498db;
+  
+  /* Button Colors (slightly brighter for dark mode) */
+  --btn-primary-bg: #3498db;
+  --btn-primary-hover: #5dade2;
+  --btn-success-bg: #27ae60;
+  --btn-success-hover: #2ecc71;
+  --btn-danger-bg: #e74c3c;
+  --btn-danger-hover: #ec7063;
+  --btn-warning-bg: #f39c12;
+  --btn-warning-hover: #f5b041;
+  --btn-secondary-bg: #5a6268;
+  --btn-secondary-hover: #6c757d;
+  
+  /* Gauge Colors */
+  --gauge-bg: #3a3a3a;
+  --gauge-text: #e0e0e0;
+  --gauge-needle: #e74c3c;
+  
+  /* Input Colors */
+  --input-bg: #3a3a3a;
+  --input-border: #505050;
+  --input-focus: #5dade2;
+  --input-disabled-bg: #2a2a2a;
+  --input-disabled-text: #666;
+  
+  /* Card specific */
+  --card-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --card-hover-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+}
+
+/* Smooth transitions for theme changes */
+* {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+/* Disable transitions for elements that shouldn't animate */
+button, input, select, textarea {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
