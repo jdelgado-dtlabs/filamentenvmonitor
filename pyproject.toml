@@ -30,4 +30,9 @@ exclude = [
 	"filamentbox.py",    # avoid module name clash with package
 ]
 
-
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["archive", "filamentcontrol", "webui-app", "node_modules"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]

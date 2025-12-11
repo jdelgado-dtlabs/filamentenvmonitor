@@ -13,8 +13,13 @@ from flask.testing import FlaskClient
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import the Flask app
-from webui.webui_server import app
+# Mock config loading before importing webui_server
+with (
+    patch("filamentbox.config._ensure_config_loaded"),
+    patch("filamentbox.config.get", return_value=True),
+):
+    # Import the Flask app
+    from webui.webui_server import app
 
 
 @pytest.fixture
