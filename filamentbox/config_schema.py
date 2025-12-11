@@ -461,6 +461,9 @@ def validate_value(key: str, value: Any, key_info: dict) -> tuple[bool, str, Any
     """
     value_type = key_info.get("type", "str")
 
+    # Declare converted with Union type to allow different types based on value_type
+    converted: bool | int | float | str
+
     # Type conversion and validation
     try:
         if value_type == "bool":
@@ -479,48 +482,54 @@ def validate_value(key: str, value: Any, key_info: dict) -> tuple[bool, str, Any
         elif value_type == "int":
             if isinstance(value, str) and not value.strip().lstrip("-").isdigit():
                 return False, f"Invalid integer value: {value}", None
-            converted = int(value)
+            converted_int: int = int(value)
 
             # Check min/max
-            if "min" in key_info and converted < key_info["min"]:
+            if "min" in key_info and converted_int < key_info["min"]:
                 return False, f"Value must be >= {key_info['min']}", None
-            if "max" in key_info and converted > key_info["max"]:
+            if "max" in key_info and converted_int > key_info["max"]:
                 return False, f"Value must be <= {key_info['max']}", None
 
             # Check choices
-            if "choices" in key_info and converted not in key_info["choices"]:
+            if "choices" in key_info and converted_int not in key_info["choices"]:
                 return False, f"Value must be one of: {key_info['choices']}", None
 
+            converted = converted_int
+
         elif value_type == "float":
-            converted = float(value)
+            converted_float: float = float(value)
 
             # Check min/max
-            if "min" in key_info and converted < key_info["min"]:
+            if "min" in key_info and converted_float < key_info["min"]:
                 return False, f"Value must be >= {key_info['min']}", None
-            if "max" in key_info and converted > key_info["max"]:
+            if "max" in key_info and converted_float > key_info["max"]:
                 return False, f"Value must be <= {key_info['max']}", None
 
+            converted = converted_float
+
         else:  # str
-            converted = str(value)
+            converted_str: str = str(value)
 
             # Check min_length
-            if "min_length" in key_info and len(converted) < key_info["min_length"]:
+            if "min_length" in key_info and len(converted_str) < key_info["min_length"]:
                 return False, f"Value must be at least {key_info['min_length']} characters", None
 
             # Check max_length
-            if "max_length" in key_info and len(converted) > key_info["max_length"]:
+            if "max_length" in key_info and len(converted_str) > key_info["max_length"]:
                 return False, f"Value must be at most {key_info['max_length']} characters", None
 
             # Check pattern
             if "pattern" in key_info:
                 pattern = key_info["pattern"]
-                if not re.match(pattern, converted):
+                if not re.match(pattern, converted_str):
                     example = key_info.get("example", "")
                     return (
                         False,
                         f"Value does not match required format. Example: {example}",
                         None,
                     )
+
+            converted = converted_str
 
             # Check choices
             if "choices" in key_info and converted not in key_info["choices"]:
@@ -542,12 +551,16 @@ def get_key_info(key: str) -> dict:
         Dictionary with schema info or empty dict if not found
     """
     parts = key.split(".")
-    schema_node = CONFIG_SCHEMA
+    schema_node: dict[str, object] = CONFIG_SCHEMA
 
     try:
         for part in parts:
             if part in schema_node:
-                schema_node = schema_node[part]
+                node_value = schema_node[part]
+                if isinstance(node_value, dict):
+                    schema_node = node_value
+                else:
+                    return {}
             else:
                 return {}
 
@@ -560,7 +573,7 @@ def get_key_info(key: str) -> dict:
     return {}
 
 
-def get_all_keys(schema: dict = None, prefix: str = "") -> set[str]:
+def get_all_keys(schema: dict[str, object] | None = None, prefix: str = "") -> set[str]:
     """Recursively get all valid keys from schema.
 
     Args:

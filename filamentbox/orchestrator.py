@@ -253,7 +253,7 @@ class ThreadOrchestrator:
         self._writer_stop_event.set()
         if self._writer_thread and self._writer_thread.is_alive():
             self._writer_thread.join(timeout=5.0)
-        self._threads["database_writer"] = None
+        self._threads["database_writer"] = None  # type: ignore[assignment]
         logging.info("Database writer stopped")
 
     def _restart_database_writer(self) -> None:
@@ -329,7 +329,7 @@ class ThreadOrchestrator:
         """Stop heating control thread."""
         logging.info("Stopping heating control...")
         stop_heating_control()
-        self._threads["heating_control"] = None
+        self._threads["heating_control"] = None  # type: ignore[assignment]
         logging.info("Heating control stopped")
 
     def _start_humidity_control(self) -> None:
@@ -349,7 +349,7 @@ class ThreadOrchestrator:
         """Stop humidity control thread."""
         logging.info("Stopping humidity control...")
         stop_humidity_control()
-        self._threads["humidity_control"] = None
+        self._threads["humidity_control"] = None  # type: ignore[assignment]
         logging.info("Humidity control stopped")
 
     def monitor(self) -> None:

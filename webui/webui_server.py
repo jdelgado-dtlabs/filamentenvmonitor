@@ -254,7 +254,7 @@ def stop_thread_endpoint(thread_name: str) -> Union[Response, Tuple[Response, in
 
 
 @app.route("/api/config/<path:key>")
-def get_config_value(key: str) -> Response:
+def get_config_value(key: str) -> Union[Response, Tuple[Response, int]]:
     """Get a specific configuration value with metadata.
 
     Args:
@@ -338,7 +338,7 @@ def set_config_value(key: str) -> Union[Response, Tuple[Response, int]]:
 
 
 @app.route("/api/config/section/<section>")
-def get_config_section(section: str) -> Response:
+def get_config_section(section: str) -> Union[Response, Tuple[Response, int]]:
     """Get all configuration values for a section.
 
     Args:
@@ -559,7 +559,7 @@ def serve_frontend() -> Response:
 
 
 @app.route("/<path:path>")
-def serve_static(path: str) -> Response:
+def serve_static(path: str) -> Union[Response, Tuple[Response, int]]:
     """Serve static files from React build or index.html for client-side routes."""
     # Don't intercept API routes - they're handled by other routes
     if path.startswith("api/"):
