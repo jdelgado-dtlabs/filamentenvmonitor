@@ -27,14 +27,22 @@ from .humidity_control import (
 from .sensor import convert_c_to_f, log_data, read_sensor_data
 from .shared_state import (
     clear_thread_restart_request,
+    clear_thread_start_request,
+    clear_thread_stop_request,
     get_thread_restart_requests,
+    get_thread_start_requests,
+    get_thread_stop_requests,
     update_sensor_data,
 )
 from .thread_control import (
     get_thread_status,
     register_restart_callback,
+    register_start_callback,
+    register_stop_callback,
     register_thread,
     restart_thread,
+    start_thread,
+    stop_thread,
 )
 
 
@@ -44,6 +52,7 @@ class ThreadOrchestrator:
     def __init__(self):
         """Initialize the orchestrator."""
         self._stop_event = threading.Event()
+        self._writer_stop_event = threading.Event()
         self._threads: dict[str, threading.Thread] = {}
         self._read_interval: float = 5.0
 
@@ -63,6 +72,16 @@ class ThreadOrchestrator:
         register_restart_callback("data_collector", self._restart_data_collector)
         register_restart_callback("heating_control", self._restart_heating_control)
         register_restart_callback("humidity_control", self._restart_humidity_control)
+
+        # Register start callbacks
+        register_start_callback("database_writer", self._start_database_writer_control)
+        register_start_callback("heating_control", self._start_heating_control)
+        register_start_callback("humidity_control", self._start_humidity_control)
+
+        # Register stop callbacks
+        register_stop_callback("database_writer", self._stop_database_writer)
+        register_stop_callback("heating_control", self._stop_heating_control)
+        register_stop_callback("humidity_control", self._stop_humidity_control)
 
         # Start core threads
         self._start_database_writer()
@@ -89,8 +108,12 @@ class ThreadOrchestrator:
 
     def _start_database_writer(self) -> None:
         """Start the database writer thread."""
+        self._writer_stop_event.clear()
         self._writer_thread = threading.Thread(
-            target=database_writer, args=(self._stop_event,), daemon=True, name="DatabaseWriter"
+            target=database_writer,
+            args=(self._writer_stop_event,),
+            daemon=True,
+            name="DatabaseWriter",
         )
         self._writer_thread.start()
         register_thread("database_writer", self._writer_thread)
@@ -140,7 +163,7 @@ class ThreadOrchestrator:
         - Humidity control (via update function)
         - Shared state (for web UI)
         """
-        self._read_interval = get("data_collection.read_interval", 5.0)
+        self._read_interval = get("sensors.read_interval", 5.0)
 
         while not self._stop_event.is_set():
             temperature_c, humidity = read_sensor_data()
@@ -218,11 +241,33 @@ class ThreadOrchestrator:
 
             time.sleep(self._read_interval)
 
+    def _start_database_writer_control(self) -> None:
+        """Start database writer via control callback."""
+        logging.info("Starting database writer...")
+        self._start_database_writer()
+        logging.info("Database writer started")
+
+    def _stop_database_writer(self) -> None:
+        """Stop database writer thread."""
+        logging.info("Stopping database writer...")
+        self._writer_stop_event.set()
+        if self._writer_thread and self._writer_thread.is_alive():
+            self._writer_thread.join(timeout=5.0)
+        self._threads["database_writer"] = None
+        logging.info("Database writer stopped")
+
     def _restart_database_writer(self) -> None:
         """Restart the database writer thread."""
         logging.info("Restarting database writer thread...")
+        self._writer_stop_event.set()
+        if self._writer_thread and self._writer_thread.is_alive():
+            self._writer_thread.join(timeout=2.0)
+        self._writer_stop_event.clear()
         new_thread = threading.Thread(
-            target=database_writer, args=(self._stop_event,), daemon=True, name="DatabaseWriter"
+            target=database_writer,
+            args=(self._writer_stop_event,),
+            daemon=True,
+            name="DatabaseWriter",
         )
         new_thread.start()
         self._writer_thread = new_thread
@@ -233,6 +278,7 @@ class ThreadOrchestrator:
     def _restart_data_collector(self) -> None:
         """Restart the data collection thread."""
         logging.info("Restarting data collector thread...")
+        # Just start a new thread - the old one will naturally exit when orphaned
         new_thread = threading.Thread(
             target=self._data_collection_cycle, daemon=True, name="DataCollector"
         )
@@ -266,6 +312,46 @@ class ThreadOrchestrator:
             self._threads["humidity_control"] = humidity_thread
         logging.info("Humidity control restarted")
 
+    def _start_heating_control(self) -> None:
+        """Start heating control thread."""
+        logging.info("Starting heating control...")
+        start_heating_control()
+        time.sleep(0.1)  # Give thread a moment to start
+        heating_thread = get_heating_thread()
+        if heating_thread:
+            register_thread("heating_control", heating_thread)
+            self._threads["heating_control"] = heating_thread
+            logging.info(f"Heating control started (thread alive: {heating_thread.is_alive()})")
+        else:
+            logging.error("Failed to get heating control thread after starting")
+
+    def _stop_heating_control(self) -> None:
+        """Stop heating control thread."""
+        logging.info("Stopping heating control...")
+        stop_heating_control()
+        self._threads["heating_control"] = None
+        logging.info("Heating control stopped")
+
+    def _start_humidity_control(self) -> None:
+        """Start humidity control thread."""
+        logging.info("Starting humidity control...")
+        start_humidity_control()
+        time.sleep(0.1)  # Give thread a moment to start
+        humidity_thread = get_humidity_thread()
+        if humidity_thread:
+            register_thread("humidity_control", humidity_thread)
+            self._threads["humidity_control"] = humidity_thread
+            logging.info(f"Humidity control started (thread alive: {humidity_thread.is_alive()})")
+        else:
+            logging.error("Failed to get humidity control thread after starting")
+
+    def _stop_humidity_control(self) -> None:
+        """Stop humidity control thread."""
+        logging.info("Stopping humidity control...")
+        stop_humidity_control()
+        self._threads["humidity_control"] = None
+        logging.info("Humidity control stopped")
+
     def monitor(self) -> None:
         """Monitor thread health and handle restart requests.
 
@@ -288,6 +374,28 @@ class ThreadOrchestrator:
                     else:
                         logging.error(f"Failed to restart thread {thread_name}: {message}")
                     clear_thread_restart_request(thread_name)
+
+                # Check for thread start requests from web UI
+                start_requests = get_thread_start_requests()
+                for thread_name in start_requests:
+                    logging.info(f"Processing start request for thread: {thread_name}")
+                    success, message = start_thread(thread_name)
+                    if success:
+                        logging.info(f"Successfully started thread: {thread_name}")
+                    else:
+                        logging.error(f"Failed to start thread {thread_name}: {message}")
+                    clear_thread_start_request(thread_name)
+
+                # Check for thread stop requests from web UI
+                stop_requests = get_thread_stop_requests()
+                for thread_name in stop_requests:
+                    logging.info(f"Processing stop request for thread: {thread_name}")
+                    success, message = stop_thread(thread_name)
+                    if success:
+                        logging.info(f"Successfully stopped thread: {thread_name}")
+                    else:
+                        logging.error(f"Failed to stop thread {thread_name}: {message}")
+                    clear_thread_stop_request(thread_name)
 
                 # Monitor core thread health
                 if self._writer_thread and not self._writer_thread.is_alive():

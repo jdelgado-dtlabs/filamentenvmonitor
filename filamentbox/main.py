@@ -15,7 +15,7 @@ _orchestrator: ThreadOrchestrator | None = None
 
 
 def _on_read_interval_changed(key: str, value: Any) -> None:
-    """Handle changes to data_collection.read_interval."""
+    """Handle changes to sensors.read_interval."""
     global _orchestrator
     try:
         new_interval = float(value) if value is not None else 5.0
@@ -95,7 +95,7 @@ def main() -> None:
         start_watcher(CONFIG_DB_PATH, interval=2.0)
 
         # Register callbacks for specific configuration keys
-        watch("data_collection.read_interval", _on_read_interval_changed)
+        watch("sensors.read_interval", _on_read_interval_changed)
         watch("sensor.type", _on_sensor_type_changed)
 
         # Watch database configuration for changes that require thread restart

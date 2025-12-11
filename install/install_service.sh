@@ -1,5 +1,5 @@
 #!/bin/bash
-# install_service.sh - Install 3D Printer Filament Storage Environment Monitor as a systemd service
+# install_service.sh - Install Filament Storage Environmental Manager as a systemd service
 
 set -e
 
@@ -17,7 +17,7 @@ SYSTEMD_DIR="/etc/systemd/system"
 INSTALLED_SERVICE="$SYSTEMD_DIR/$SERVICE_NAME"
 
 echo "=============================="
-echo "3D Printer Filament Storage Environment Monitor"
+echo "Filament Storage Environmental Manager"
 echo "Service Installer"
 echo "=============================="
 echo

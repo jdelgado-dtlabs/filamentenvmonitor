@@ -1386,8 +1386,12 @@ def is_text_input_key(key: str) -> bool:
     return any(pattern in key.lower() for pattern in text_input_patterns)
 
 
-def edit_tags_menu(cache: ConfigCache, base_key: str = "data_collection.tags"):
-    """Special menu for editing tags (key-value pairs)."""
+def edit_tags_menu(cache: ConfigCache, base_key: str):
+    """Special menu for editing tags (key-value pairs).
+
+    Note: base_key should be database-specific like 'database.influxdb.tags'
+    The deprecated 'data_collection.tags' is no longer supported.
+    """
     while True:
         print_header("Edit Tags")
 

@@ -14,6 +14,7 @@ from filamentbox.shared_state import (
     get_heater_manual_override,
     update_heater_state,
 )
+from filamentbox.notification_publisher import notify_info, notify_warning
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +126,7 @@ def _heating_control_loop() -> None:
         return
 
     logger.info(
-        f"Heating control active: {min_temp}°C - {max_temp}°C (check interval: {check_interval}s)"
+        f"Heating control active: ON below {min_temp}°C, OFF above {max_temp}°C (check interval: {check_interval}s)"
     )
 
     heater_state = False  # Track current state
@@ -144,6 +145,16 @@ def _heating_control_loop() -> None:
                     update_heater_state(heater_state)
                     mode = "MANUAL"
                     logger.info(f"Heater {'ON' if heater_state else 'OFF'} ({mode})")
+                    # Send notification
+                    if heater_state:
+                        notify_info("🔥 Heater turned ON (manual override)")
+                    else:
+                        notify_info("🔥 Heater turned OFF (manual override)")
+                    # Send notification
+                    if heater_state:
+                        notify_info("🔥 Heater turned ON (manual override)")
+                    else:
+                        notify_info("🔥 Heater turned OFF (manual override)")
             else:
                 # Automatic control mode
                 # Get current temperature
@@ -162,11 +173,15 @@ def _heating_control_loop() -> None:
                     heater_state = True
                     update_heater_state(heater_state)
                     logger.info(f"Heater ON: temperature {temp:.2f}°C < {min_temp}°C")
+                    notify_info(f"🔥 Heater turned ON (temperature {temp:.1f}°C < {min_temp}°C)")
                 elif temp > max_temp and heater_state:
                     relay.value = False
                     heater_state = False
                     update_heater_state(heater_state)
                     logger.info(f"Heater OFF: temperature {temp:.2f}°C > {max_temp}°C")
+                    notify_warning(
+                        f"⚠️ Temperature too high: {temp:.1f}°C (max: {max_temp}°C) - Heater turned OFF"
+                    )
 
             time.sleep(check_interval)
 
@@ -188,6 +203,9 @@ def get_heating_thread() -> Optional[threading.Thread]:
     Returns:
         The heating control thread if it exists, None otherwise.
     """
+    logger.debug(
+        f"get_heating_thread() called, _heating_thread={_heating_thread}, alive={_heating_thread.is_alive() if _heating_thread else 'N/A'}"
+    )
     return _heating_thread
 
 
@@ -212,7 +230,9 @@ def start_heating_control() -> None:
         target=_heating_control_loop, name="HeatingControl", daemon=True
     )
     _heating_thread.start()
-    logger.info("Heating control thread started")
+    logger.info(
+        f"Heating control thread started (alive={_heating_thread.is_alive()}, id={id(_heating_thread)})"
+    )
 
 
 def stop_heating_control() -> None:

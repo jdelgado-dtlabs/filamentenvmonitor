@@ -80,7 +80,7 @@ def draw_ui(stdscr: "curses.window") -> None:
             control_states = get_control_states()
 
             # Title
-            title = "FilamentBox Environment Monitor & Control"
+            title = "Filament Storage Environmental Manager"
             stdscr.addstr(0, (width - len(title)) // 2, title, curses.A_BOLD | curses.color_pair(4))
 
             # Sensor Readings Section

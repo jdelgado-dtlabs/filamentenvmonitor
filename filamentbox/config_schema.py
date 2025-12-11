@@ -185,54 +185,6 @@ CONFIG_SCHEMA = {
                 "required": False,
             },
         },
-    },
-    "sensors": {
-        "bme280": {
-            "enabled": {
-                "type": "bool",
-                "desc": "Enable BME280 sensor",
-                "default": False,
-            },
-            "i2c_address": {
-                "type": "str",
-                "desc": "I2C address",
-                "example": "0x76",
-                "pattern": r"^0x[0-9a-fA-F]{2}$",
-                "choices": ["0x76", "0x77"],
-            },
-            "sea_level_pressure": {
-                "type": "float",
-                "desc": "Sea level pressure for altitude calculation (hPa)",
-                "example": "1013.25",
-                "min": 900.0,
-                "max": 1100.0,
-                "default": 1013.25,
-            },
-        },
-        "dht22": {
-            "enabled": {
-                "type": "bool",
-                "desc": "Enable DHT22 sensor",
-                "default": False,
-            },
-            "gpio_pin": {
-                "type": "int",
-                "desc": "GPIO pin number (BCM numbering)",
-                "example": "4",
-                "min": 0,
-                "max": 27,
-            },
-        },
-    },
-    "data_collection": {
-        "read_interval": {
-            "type": "float",
-            "desc": "Seconds between sensor reads",
-            "example": "5.0",
-            "min": 0.1,
-            "max": 3600.0,
-            "default": 5.0,
-        },
         "batch_size": {
             "type": "int",
             "desc": "Data points per batch before write",
@@ -248,6 +200,126 @@ CONFIG_SCHEMA = {
             "min": 1,
             "max": 3600,
             "default": 60,
+        },
+    },
+    "sensors": {
+        "type": {
+            "type": "str",
+            "desc": "Active sensor type",
+            "example": "bme280",
+            "choices": ["bme280", "dht22"],
+            "required": True,
+            "default": "bme280",
+        },
+        "read_interval": {
+            "type": "float",
+            "desc": "Seconds between sensor reads",
+            "example": "5.0",
+            "min": 0.1,
+            "max": 3600.0,
+            "default": 5.0,
+        },
+        "bme280": {
+            "i2c_address": {
+                "type": "str",
+                "desc": "I2C address",
+                "example": "0x76",
+                "pattern": r"^0x[0-9a-fA-F]{2}$",
+                "choices": ["0x76", "0x77"],
+                "default": "0x76",
+            },
+            "sea_level_pressure": {
+                "type": "float",
+                "desc": "Sea level pressure for altitude calculation (hPa)",
+                "example": "1013.25",
+                "min": 900.0,
+                "max": 1100.0,
+                "default": 1013.25,
+            },
+        },
+        "dht22": {
+            "gpio_pin": {
+                "type": "int",
+                "desc": "GPIO pin number (BCM numbering)",
+                "example": "4",
+                "min": 0,
+                "max": 27,
+                "default": 4,
+            },
+        },
+    },
+    "data_collection": {
+        "gauge_temp_min": {
+            "type": "float",
+            "desc": "Minimum value for temperature gauge display (°C)",
+            "example": "0.0",
+            "default": 0.0,
+        },
+        "gauge_temp_max": {
+            "type": "float",
+            "desc": "Maximum value for temperature gauge display (°C)",
+            "example": "50.0",
+            "default": 50.0,
+        },
+        "gauge_humidity_min": {
+            "type": "float",
+            "desc": "Minimum value for humidity gauge display (%)",
+            "example": "0.0",
+            "default": 0.0,
+        },
+        "gauge_humidity_max": {
+            "type": "float",
+            "desc": "Maximum value for humidity gauge display (%)",
+            "example": "100.0",
+            "default": 100.0,
+        },
+        "gauge_temp_color_red_high": {
+            "type": "float",
+            "desc": "Temperature gauge: percentage threshold for red zone (high)",
+            "example": "90.0",
+            "default": 90.0,
+        },
+        "gauge_temp_color_yellow_high": {
+            "type": "float",
+            "desc": "Temperature gauge: percentage threshold for yellow zone (high)",
+            "example": "60.0",
+            "default": 60.0,
+        },
+        "gauge_temp_color_green_high": {
+            "type": "float",
+            "desc": "Temperature gauge: percentage threshold for green zone (high)",
+            "example": "30.0",
+            "default": 30.0,
+        },
+        "gauge_temp_color_yellow_low": {
+            "type": "float",
+            "desc": "Temperature gauge: percentage threshold for yellow zone (low)",
+            "example": "10.0",
+            "default": 10.0,
+        },
+        "gauge_humidity_color_red_high": {
+            "type": "float",
+            "desc": "Humidity gauge: percentage threshold for red zone (high)",
+            "example": "90.0",
+            "default": 90.0,
+        },
+        "gauge_humidity_color_yellow_high": {
+            "type": "float",
+            "desc": "Humidity gauge: percentage threshold for yellow zone (high)",
+            "example": "60.0",
+            "default": 60.0,
+        },
+        "gauge_humidity_color_green_high": {
+            "type": "float",
+            "desc": "Humidity gauge: percentage threshold for green zone (high)",
+            "example": "30.0",
+            "default": 30.0,
+        },
+        "gauge_humidity_color_yellow_low": {
+            "type": "float",
+            "desc": "Humidity gauge: percentage threshold for yellow zone (low)",
+            "example": "10.0",
+            "default": 10.0,
         },
     },
     "heating_control": {
@@ -348,6 +420,23 @@ CONFIG_SCHEMA = {
             "min": 1024,
             "max": 65535,
             "default": 5000,
+        },
+    },
+    "ui": {
+        "show_database_card": {
+            "type": "bool",
+            "desc": "Show database card on dashboard",
+            "default": True,
+        },
+        "show_heater_card": {
+            "type": "bool",
+            "desc": "Show heater card on dashboard",
+            "default": True,
+        },
+        "show_fan_card": {
+            "type": "bool",
+            "desc": "Show fan card on dashboard",
+            "default": True,
         },
     },
 }

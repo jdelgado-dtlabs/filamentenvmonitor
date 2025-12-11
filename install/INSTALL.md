@@ -1,6 +1,6 @@
 # FilamentBox Installation Guide
 
-Complete installation and configuration guide for the 3D Printer Filament Storage Environment Monitor.
+Complete installation and configuration guide for the Filament Storage Environmental Manager.
 
 ## Table of Contents
 - [System Requirements](#system-requirements)
@@ -895,7 +895,7 @@ sudo journalctl -u filamentbox-webui.service -n 100
 ```ini
 # Version: 1.6.0
 [Unit]
-Description=FilamentBox Environment Monitor
+Description=Filament Storage Environmental Manager
 After=network.target
 
 [Service]

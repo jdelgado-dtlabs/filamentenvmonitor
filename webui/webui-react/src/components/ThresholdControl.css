@@ -1,0 +1,135 @@
+.threshold-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 0;
+  padding: 12px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.threshold-label {
+  font-size: 0.85rem;
+  color: #7f8c8d;
+  font-weight: 500;
+  flex: 0 0 auto;
+}
+
+.threshold-adjuster {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.threshold-value {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #2c3e50;
+  min-width: 60px;
+  text-align: center;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+  flex-shrink: 0;
+}
+
+.threshold-value:hover {
+  background-color: #e9ecef;
+}
+
+.threshold-input {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #2c3e50;
+  min-width: 60px;
+  text-align: center;
+  padding: 4px 8px;
+  border: 2px solid #3498db;
+  border-radius: 4px;
+  background: white;
+  flex-shrink: 0;
+}
+
+.threshold-input:focus {
+  outline: none;
+  border-color: #2980b9;
+}
+
+.threshold-buttons {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.threshold-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0 !important;
+  font-size: 1.1rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.threshold-actions {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 0 12px;
+}
+
+.threshold-actions button {
+  flex: 1;
+}
+
+.thresholds-horizontal {
+  display: flex;
+  gap: 24px;
+  margin: 12px 0;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.thresholds-horizontal .threshold-control {
+  flex: 1 1 auto;
+  min-width: 180px;
+  max-width: 350px;
+}
+
+.thresholds-horizontal .threshold-label {
+  text-align: center;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.thresholds-horizontal .threshold-adjuster {
+  justify-content: center;
+}
+
+@media (max-width: 768px) {
+  .thresholds-horizontal {
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .thresholds-horizontal .threshold-label {
+    text-align: left;
+  }
+
+  .thresholds-horizontal .threshold-adjuster {
+    justify-content: flex-end;
+  }
+
+  .thresholds-horizontal .threshold-control {
+    flex-direction: row;
+    justify-content: space-between;
+  }
+}

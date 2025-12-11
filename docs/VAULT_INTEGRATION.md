@@ -116,7 +116,7 @@ vault write -f auth/approle/role/filamentbox/secret-id
 
 ```ini
 [Unit]
-Description=FilamentBox Environment Monitor
+Description=Filament Storage Environmental Manager
 After=network.target
 
 [Service]

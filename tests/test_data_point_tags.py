@@ -1,4 +1,12 @@
-"""Unit tests for data point tag handling in main.py."""
+"""Unit tests for data point tag handling in orchestrator.py.
+
+Note: Tags are database-specific (database.influxdb.tags, database.prometheus.tags, etc.)
+The deprecated data_collection.tags is no longer used.
+
+DEPRECATED: These tests are outdated and mock functions that no longer exist.
+The actual tag implementation is in orchestrator.py and uses database-specific config keys.
+TODO: Rewrite tests to test the actual orchestrator.py implementation.
+"""
 
 import os
 import sys
@@ -28,9 +36,9 @@ class TestDataPointTags(unittest.TestCase):
 
         def mock_get_side_effect(key, default=None):
             config_values = {
-                "data_collection.read_interval": 0.25,
+                "sensors.read_interval": 0.25,
                 "data_collection.measurement": "environment",
-                "data_collection.tags": {"location": "filamentbox", "device": "sensor-1"},
+                "database.influxdb.tags": {"location": "filamentbox", "device": "sensor-1"},
             }
             return config_values.get(key, default)
 
@@ -51,7 +59,7 @@ class TestDataPointTags(unittest.TestCase):
         humidity = float(humidity)
 
         measurement = mock_get_side_effect("data_collection.measurement") or "environment"
-        tags = mock_get_side_effect("data_collection.tags")
+        tags = mock_get_side_effect("database.influxdb.tags")
 
         # Build data point
         db_json_body = {
@@ -90,9 +98,9 @@ class TestDataPointTags(unittest.TestCase):
 
         def mock_get_side_effect(key, default=None):
             config_values = {
-                "data_collection.read_interval": 0.25,
+                "sensors.read_interval": 0.25,
                 "data_collection.measurement": "environment",
-                "data_collection.tags": None,  # No tags configured
+                "database.influxdb.tags": None,  # No tags configured
             }
             return config_values.get(key, default)
 
@@ -107,7 +115,7 @@ class TestDataPointTags(unittest.TestCase):
         humidity = float(humidity)
 
         measurement = mock_get_side_effect("data_collection.measurement") or "environment"
-        tags = mock_get_side_effect("data_collection.tags")
+        tags = mock_get_side_effect("database.influxdb.tags")
 
         # Build data point
         db_json_body = {

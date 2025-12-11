@@ -11,6 +11,7 @@ from typing import Optional
 
 from .config import get
 from .shared_state import get_fan_manual_override, update_fan_state
+from .notification_publisher import notify_info, notify_warning
 
 # Current humidity value (updated by main thread, read by control thread)
 _current_humidity: Optional[float] = None
@@ -119,6 +120,11 @@ def _humidity_control_loop() -> None:
                     update_fan_state(fan_state)
                     mode = "MANUAL"
                     logging.info(f"Fan {'ON' if fan_state else 'OFF'} ({mode})")
+                    # Send notification
+                    if fan_state:
+                        notify_info("💨 Fan turned ON (manual override)")
+                    else:
+                        notify_info("💨 Fan turned OFF (manual override)")
             else:
                 # Automatic control mode
                 with _humidity_lock:
@@ -133,6 +139,9 @@ def _humidity_control_loop() -> None:
                         fan_state = True
                         update_fan_state(fan_state)
                         logging.info(f"Fan ON: humidity {humidity:.1f}% > {max_humidity}%")
+                        notify_warning(
+                            f"⚠️ Humidity too high: {humidity:.1f}% (max: {max_humidity}%) - Fan turned ON"
+                        )
 
                     elif humidity < min_humidity and fan_state:
                         # Humidity acceptable - turn fan OFF
@@ -141,6 +150,9 @@ def _humidity_control_loop() -> None:
                         fan_state = False
                         update_fan_state(fan_state)
                         logging.info(f"Fan OFF: humidity {humidity:.1f}% < {min_humidity}%")
+                        notify_info(
+                            f"💨 Fan turned OFF (humidity {humidity:.1f}% < {min_humidity}%)"
+                        )
 
                     else:
                         # Within hysteresis range - maintain current state

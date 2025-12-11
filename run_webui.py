@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-FilamentBox Web UI Server Launcher
+Filament Storage Environmental Manager Web UI Server Launcher
 
 Entry point for starting the web UI server as a systemd service.
 """

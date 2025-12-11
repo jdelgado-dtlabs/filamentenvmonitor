@@ -1,4 +1,4 @@
-# 3D Printer Filament Storage Environment Monitor
+# Filament Storage Environmental Manager
 
 <p align="center">
   <img src="images/filament.jpeg" alt="Filament Storage Environment" width="600" />
@@ -8,7 +8,7 @@
 ![Release](https://github.com/jdelgado-dtlabs/filamentenvmonitor/actions/workflows/release.yml/badge.svg)
 [![Latest Release](https://img.shields.io/github/v/release/jdelgado-dtlabs/filamentenvmonitor?label=latest%20release)](https://github.com/jdelgado-dtlabs/filamentenvmonitor/releases/latest)
 
-A Python 3.13 application for monitoring temperature and humidity in 3D printer filament storage environments. Supports multiple sensor types (BME280, DHT22) and multiple time-series databases with encrypted configuration, optional HashiCorp Vault integration, robust data collection, batching, active environment control, and both CLI and Web UI interfaces.
+A Python 3.13 application for monitoring and controlling temperature and humidity in 3D printer filament storage environments. Supports multiple sensor types (BME280, DHT22) and multiple time-series databases with encrypted configuration, optional HashiCorp Vault integration, robust data collection, batching, active environment control, and both CLI and Web UI interfaces.
 
 ## Highlights (v2.0)
 - **🔐 Encrypted Configuration**: SQLCipher-based encrypted database with 256-bit AES encryption

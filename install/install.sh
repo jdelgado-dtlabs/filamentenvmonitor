@@ -92,7 +92,7 @@ show_header() {
     echo
     echo -e "${CYAN}╔════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${CYAN}║                                                            ║${NC}"
-    echo -e "${CYAN}║         FilamentBox Environment Monitor Installer          ║${NC}"
+    echo -e "${CYAN}║      Filament Storage Environmental Manager Installer      ║${NC}"
     echo -e "${CYAN}║                                                            ║${NC}"
     echo -e "${CYAN}╚════════════════════════════════════════════════════════════╝${NC}"
     echo

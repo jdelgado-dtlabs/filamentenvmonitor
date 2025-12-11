@@ -1,4 +1,4 @@
-"""3D Printer Filament Storage Environment Monitor.
+"""Filament Storage Environmental Manager.
 
 This wrapper calls `filamentbox.main:main()` so you can run:
 

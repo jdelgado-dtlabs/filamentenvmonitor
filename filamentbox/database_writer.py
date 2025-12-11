@@ -20,14 +20,15 @@ from typing import Any, Callable, Optional
 
 from .config import get
 from .databases import create_database_adapter
+from .notification_publisher import notify_error, notify_success
 from .persistence import persist_batch
 from .shared_state import update_database_status
 
 # Configuration with sensible defaults for missing keys
 DATA_COLLECTION_ENABLED = get("data_collection.enabled", True)  # Default: enabled
 DB_TYPE = get("database.type", "none")  # Default: no database (sensor-only mode)
-BATCH_SIZE = get("data_collection.batch_size", 10)
-FLUSH_INTERVAL = get("data_collection.flush_interval", 60)
+BATCH_SIZE = get("database.batch_size", 10)
+FLUSH_INTERVAL = get("database.flush_interval", 60)
 WRITE_QUEUE_MAXSIZE = get("queue.max_size", 10000)  # Legacy key, not in schema
 BACKOFF_BASE = get("retry.backoff_base", 2)  # Legacy key, not in schema
 BACKOFF_MAX = get("retry.backoff_max", 300)  # Legacy key, not in schema (5 minutes)
@@ -204,9 +205,14 @@ def database_writer(stop_event: Optional[threading.Event] = None) -> None:
                     logging.debug(f"Wrote {len(batch)} points to {DB_TYPE}.")
                     batch.clear()
                     last_flush_time = current_time
+                    # Check if we're recovering from failures
+                    was_in_failure_state = alerted
                     if failure_count != 0:
                         failure_count = 0
                         alerted = False
+                    # Notify if connection was restored
+                    if was_in_failure_state:
+                        notify_success("✓ Database connection restored")
                     # Update database status with successful write
                     update_database_status(DB_TYPE, True, True, current_time, 0)
                 except Exception as e:
@@ -220,6 +226,7 @@ def database_writer(stop_event: Optional[threading.Event] = None) -> None:
                         logging.error(
                             f"{DB_TYPE} write failed {failure_count} times in a row; check connection"
                         )
+                        notify_error("⚠️ Database connection lost, retrying...")
                         # Call registered alert handler if present
                         if alert_handler is not None:
                             try:

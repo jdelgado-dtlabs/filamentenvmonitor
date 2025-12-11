@@ -1,6 +1,6 @@
-# FilamentBox Tests
+# Filament Storage Environmental Manager Tests
 
-This directory contains the test suite for the FilamentBox Environment Monitor.
+This directory contains the test suite for the Filament Storage Environmental Manager.
 
 ## Overview
 

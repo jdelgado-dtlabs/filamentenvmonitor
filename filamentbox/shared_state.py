@@ -35,6 +35,10 @@ _threads_status: dict = {}
 # Thread restart requests (for orchestrator signaling)
 _thread_restart_requests: dict[str, float] = {}  # thread_name -> timestamp
 
+# Thread start/stop requests (for orchestrator signaling)
+_thread_start_requests: dict[str, float] = {}  # thread_name -> timestamp
+_thread_stop_requests: dict[str, float] = {}  # thread_name -> timestamp
+
 
 def update_sensor_data(
     temperature_c: Optional[float],
@@ -257,6 +261,74 @@ def get_thread_restart_requests() -> dict[str, float]:
     """
     with _state_lock:
         return _thread_restart_requests.copy()
+
+
+def request_thread_start(thread_name: str) -> None:
+    """Request a thread start (orchestrator signal).
+
+    Args:
+        thread_name: Name of the thread to start
+    """
+    import time
+
+    global _thread_start_requests
+    with _state_lock:
+        _thread_start_requests[thread_name] = time.time()
+
+
+def request_thread_stop(thread_name: str) -> None:
+    """Request a thread stop (orchestrator signal).
+
+    Args:
+        thread_name: Name of the thread to stop
+    """
+    import time
+
+    global _thread_stop_requests
+    with _state_lock:
+        _thread_stop_requests[thread_name] = time.time()
+
+
+def get_thread_start_requests() -> dict[str, float]:
+    """Get pending thread start requests.
+
+    Returns:
+        Dictionary mapping thread names to request timestamps
+    """
+    with _state_lock:
+        return _thread_start_requests.copy()
+
+
+def get_thread_stop_requests() -> dict[str, float]:
+    """Get pending thread stop requests.
+
+    Returns:
+        Dictionary mapping thread names to request timestamps
+    """
+    with _state_lock:
+        return _thread_stop_requests.copy()
+
+
+def clear_thread_start_request(thread_name: str) -> None:
+    """Clear a thread start request after it's been processed.
+
+    Args:
+        thread_name: Name of the thread
+    """
+    global _thread_start_requests
+    with _state_lock:
+        _thread_start_requests.pop(thread_name, None)
+
+
+def clear_thread_stop_request(thread_name: str) -> None:
+    """Clear a thread stop request after it's been processed.
+
+    Args:
+        thread_name: Name of the thread
+    """
+    global _thread_stop_requests
+    with _state_lock:
+        _thread_stop_requests.pop(thread_name, None)
 
 
 def clear_thread_restart_request(thread_name: str) -> None:
