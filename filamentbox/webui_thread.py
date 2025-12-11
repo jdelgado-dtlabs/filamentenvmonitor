@@ -12,7 +12,8 @@ def start_webui_thread(host: str, port: int, stop_event: threading.Event) -> Non
     """Start the Flask web UI in the current thread.
 
     This function is designed to be run as a thread target. It starts Flask
-    with production-ready settings and monitors the stop event.
+    with production-ready settings using waitress WSGI server for better
+    SSE support.
 
     Args:
         host: Host address to bind to (e.g., '0.0.0.0')
@@ -33,17 +34,32 @@ def start_webui_thread(host: str, port: int, stop_event: threading.Event) -> Non
 
         logging.info(f"Starting Flask web UI on {host}:{port}")
 
-        # Run Flask in threaded mode without debug/reloader
-        # The stop_event is monitored by the orchestrator
-        app.run(
-            host=host,
-            port=port,
-            debug=False,
-            use_reloader=False,
-            threaded=True,
-            # Don't show Flask startup banner in production
-            # This keeps logs clean
-        )
+        try:
+            # Try to use waitress (better SSE support)
+            from waitress import serve
+
+            logging.info("Using waitress WSGI server (production mode)")
+            serve(
+                app,
+                host=host,
+                port=port,
+                threads=16,  # Increase threads for multiple concurrent SSE connections
+                channel_timeout=300,  # Keep SSE connections alive for 5 min
+                asyncore_use_poll=True,  # Use poll() for better concurrency
+                _quiet=False,
+            )
+        except ImportError:
+            # Fall back to Flask development server
+            logging.warning(
+                "waitress not available, using Flask dev server (install waitress for better SSE support)"
+            )
+            app.run(
+                host=host,
+                port=port,
+                debug=False,
+                use_reloader=False,
+                threaded=True,
+            )
 
     except ImportError as e:
         logging.error(f"Failed to import Flask app: {e}")

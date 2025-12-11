@@ -7,6 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: false,  // Don't auto-inject service worker registration
       includeAssets: ['favicon.ico'],
       manifest: {
         name: 'Filament Storage Manager',

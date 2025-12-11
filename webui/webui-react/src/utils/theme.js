@@ -12,10 +12,24 @@ const THEME_AUTO = 'auto';
  * @returns {'light' | 'dark'}
  */
 export function getSystemTheme() {
-  if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+  // Try multiple methods to detect system theme
+  if (window.matchMedia) {
+    // Check prefers-color-scheme
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return THEME_DARK;
+    }
+    if (window.matchMedia('(prefers-color-scheme: light)').matches) {
+      return THEME_LIGHT;
+    }
+  }
+  
+  // Check if document has dark mode class (some systems set this)
+  if (document.documentElement.classList.contains('dark')) {
     return THEME_DARK;
   }
-  return THEME_LIGHT;
+  
+  // Default to dark for better visibility on kiosk displays
+  return THEME_DARK;
 }
 
 /**

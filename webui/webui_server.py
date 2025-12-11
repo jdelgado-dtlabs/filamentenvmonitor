@@ -469,6 +469,11 @@ def stream_updates() -> Response:
 
     def generate():
         """Generate SSE events with system status updates."""
+        logger.info("SSE client connected")
+
+        # Send retry instruction (reconnect after 1 second if disconnected)
+        yield "retry: 1000\n\n"
+
         while True:
             try:
                 # Get all status data
@@ -525,7 +530,9 @@ def stream_updates() -> Response:
                     "threads": threads,
                 }
 
-                # Send SSE formatted message
+                # Send SSE formatted message with explicit id
+                message_id = int(time.time() * 1000)  # Millisecond timestamp as ID
+                yield f"id: {message_id}\n"
                 yield f"data: {json.dumps(update)}\n\n"
 
                 # Wait 1 second before next update
@@ -545,9 +552,9 @@ def stream_updates() -> Response:
         generate(),
         mimetype="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
-            "X-Accel-Buffering": "no",  # Disable nginx buffering
-            "Connection": "keep-alive",
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Content-Type": "text/event-stream; charset=utf-8",
         },
     )
 

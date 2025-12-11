@@ -53,11 +53,19 @@ export function useServerEvents(url, onMessage, onError) {
 
         eventSource.onerror = (err) => {
           console.error('SSE error:', err);
+          console.error('SSE readyState:', eventSource.readyState);
+          console.error('SSE url:', eventSource.url);
+          
+          // Log to page for debugging in kiosk mode
+          const debugDiv = document.getElementById('sse-debug') || createDebugDiv();
+          const timestamp = new Date().toLocaleTimeString();
+          debugDiv.innerHTML += `<div>${timestamp} - SSE Error: readyState=${eventSource.readyState}</div>`;
+          
           eventSource.close();
 
           if (isActive) {
             setConnected(false);
-            setError('Connection lost');
+            setError('Connection lost - readyState: ' + eventSource.readyState);
             
             if (onError) {
               onError(err);
@@ -69,10 +77,21 @@ export function useServerEvents(url, onMessage, onError) {
               30000
             );
             reconnectAttemptsRef.current++;
+            
+            const debugDiv2 = document.getElementById('sse-debug') || createDebugDiv();
+            debugDiv2.innerHTML += `<div>${timestamp} - Reconnecting in ${backoffDelay}ms (attempt ${reconnectAttemptsRef.current})</div>`;
 
             reconnectTimeoutRef.current = setTimeout(connect, backoffDelay);
           }
         };
+        
+        function createDebugDiv() {
+          const div = document.createElement('div');
+          div.id = 'sse-debug';
+          div.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,0.8);color:#0f0;padding:10px;font-family:monospace;font-size:12px;max-height:200px;overflow-y:auto;z-index:9999';
+          document.body.appendChild(div);
+          return div;
+        }
 
       } catch (err) {
         console.error('Failed to create EventSource:', err);
