@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    import requests
+    import requests  # type: ignore[import-untyped]  # noqa: PGH003
 else:
     try:
         import requests  # type: ignore[import-untyped]
