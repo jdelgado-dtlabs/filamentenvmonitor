@@ -1,6 +1,6 @@
-# FilamentBox Installation Guide
+# Filament Storage Environmental Manager (FSEM) Installation Guide
 
-Complete installation and configuration guide for the Filament Storage Environmental Manager.
+Complete installation and configuration guide for FSEM.
 
 ## Table of Contents
 - [System Requirements](#system-requirements)
@@ -233,13 +233,11 @@ The installer will ask:
 After successful installation:
 
 ```bash
-# Check service status
+# Check service status (Web UI is integrated in main service)
 sudo systemctl status filamentbox.service
-sudo systemctl status filamentbox-webui.service
 
 # View logs
 sudo journalctl -u filamentbox.service -f
-sudo journalctl -u filamentbox-webui.service -f
 
 # Access web UI
 # Open browser to: http://YOUR_PI_IP:5000
@@ -672,28 +670,11 @@ sudo ./install/install_service.sh
 
 **Service file location**: `/etc/systemd/system/filamentbox.service`
 
-#### Web UI Service
+**Note**: The Web UI is integrated into the main service via the orchestrator. There is no separate webui service in v2.0+.
 
-```bash
-# Run the web UI installer
-sudo ./install/install_webui_service.sh
-```
-
-**What it does**:
-1. Checks for Flask dependencies in virtual environment
-2. Detects existing service and version
-3. Configures nginx if installed:
-   - Detects Docker or bare metal installation
-   - Creates appropriate reverse proxy configuration
-   - Reloads nginx configuration
-4. Copies service file to systemd
-5. Enables and optionally starts service
-
-**Service file location**: `/etc/systemd/system/filamentbox-webui.service`
-
-**Nginx configuration**: 
-- Docker: `/etc/nginx/conf.d/filamentbox-webui.conf`
-- Bare metal: `/etc/nginx/sites-available/filamentbox-webui` (symlinked to sites-enabled)
+**Nginx configuration** (optional for reverse proxy): 
+- Docker: `/etc/nginx/conf.d/filamentbox.conf`
+- Bare metal: `/etc/nginx/sites-available/filamentbox` (symlinked to sites-enabled)
 
 ### Nginx Configuration
 
@@ -703,7 +684,7 @@ The web UI installer automatically configures nginx if detected:
 
 ```nginx
 # Docker installation
-# /etc/nginx/conf.d/filamentbox-webui.conf
+# /etc/nginx/conf.d/filamentbox.conf
 
 server {
     listen 80;
@@ -721,7 +702,7 @@ server {
 
 ```nginx
 # Bare metal installation
-# /etc/nginx/sites-available/filamentbox-webui
+# /etc/nginx/sites-available/filamentbox
 
 server {
     listen 80;
@@ -743,12 +724,12 @@ If you prefer manual configuration or need HTTPS:
 
 ```bash
 # Create configuration file
-sudo nano /etc/nginx/sites-available/filamentbox-webui
+sudo nano /etc/nginx/sites-available/filamentbox
 
 # Add configuration (see above)
 
 # Enable site (bare metal only)
-sudo ln -s /etc/nginx/sites-available/filamentbox-webui /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/filamentbox /etc/nginx/sites-enabled/
 
 # Test configuration
 sudo nginx -t
@@ -857,35 +838,35 @@ sudo journalctl -u filamentbox.service -b
 
 ```bash
 # Start service
-sudo systemctl start filamentbox-webui.service
+sudo systemctl start filamentbox.service (v2.0+ - webui integrated)
 
 # Stop service
-sudo systemctl stop filamentbox-webui.service
+sudo systemctl stop filamentbox.service (v2.0+ - webui integrated)
 
 # Restart service
-sudo systemctl restart filamentbox-webui.service
+sudo systemctl restart filamentbox.service (v2.0+ - webui integrated)
 
 # Check status
-sudo systemctl status filamentbox-webui.service
+sudo systemctl status filamentbox.service (v2.0+ - webui integrated)
 
 # Enable auto-start on boot
-sudo systemctl enable filamentbox-webui.service
+sudo systemctl enable filamentbox.service (v2.0+ - webui integrated)
 
 # Disable auto-start
-sudo systemctl disable filamentbox-webui.service
+sudo systemctl disable filamentbox.service (v2.0+ - webui integrated)
 
 # View logs (real-time)
-sudo journalctl -u filamentbox-webui.service -f
+sudo journalctl -u filamentbox.service (v2.0+ - webui integrated) -f
 
 # View logs (last 100 lines)
-sudo journalctl -u filamentbox-webui.service -n 100
+sudo journalctl -u filamentbox.service (v2.0+ - webui integrated) -n 100
 ```
 
 ### Service File Locations
 
 ```
 /etc/systemd/system/filamentbox.service
-/etc/systemd/system/filamentbox-webui.service
+/etc/systemd/system/filamentbox.service (v2.0+ - webui integrated)
 ```
 
 ### Service File Details
@@ -893,9 +874,9 @@ sudo journalctl -u filamentbox-webui.service -n 100
 #### Main Service (filamentbox.service)
 
 ```ini
-# Version: 1.6.0
+# Version: 2.0.0
 [Unit]
-Description=Filament Storage Environmental Manager
+Description=Filament Storage Environmental Manager (with integrated Web UI)
 After=network.target
 
 [Service]
@@ -918,25 +899,7 @@ PrivateTmp=true
 WantedBy=multi-user.target
 ```
 
-#### Web UI Service (filamentbox-webui.service)
-
-```ini
-# Version: 1.6.0
-[Unit]
-Description=FilamentBox Web UI Server
-After=network.target filamentbox.service
-Requires=filamentbox.service
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/opt/filamentcontrol
-Environment="PATH=/opt/filamentcontrol/filamentcontrol/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-ExecStart=/opt/filamentcontrol/filamentcontrol/bin/python webui/webui_server.py
-Restart=on-failure
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
+**Note**: The Web UI server is integrated into the main service via the orchestrator in v2.0+. There is no separate webui service file.
 
 # Security hardening
 ProtectSystem=strict
@@ -1007,7 +970,7 @@ If you prefer manual control:
 
 ```bash
 # Stop services
-sudo systemctl stop filamentbox-webui.service
+sudo systemctl stop filamentbox.service (v2.0+ - webui integrated)
 sudo systemctl stop filamentbox.service
 
 # Update code
@@ -1019,18 +982,18 @@ pip install -r requirements.txt
 
 # Copy new service files
 sudo cp filamentbox.service /etc/systemd/system/
-sudo cp filamentbox-webui.service /etc/systemd/system/
+sudo cp filamentbox.service (v2.0+ - webui integrated) /etc/systemd/system/
 
 # Reload systemd
 sudo systemctl daemon-reload
 
 # Start services
 sudo systemctl start filamentbox.service
-sudo systemctl start filamentbox-webui.service
+sudo systemctl start filamentbox.service (v2.0+ - webui integrated)
 
 # Verify status
 sudo systemctl status filamentbox.service
-sudo systemctl status filamentbox-webui.service
+sudo systemctl status filamentbox.service (v2.0+ - webui integrated)
 ```
 
 ### Rolling Back Updates
@@ -1039,7 +1002,7 @@ If an update causes issues:
 
 ```bash
 # Stop services
-sudo systemctl stop filamentbox-webui.service
+sudo systemctl stop filamentbox.service (v2.0+ - webui integrated)
 sudo systemctl stop filamentbox.service
 
 # Roll back code
@@ -1207,7 +1170,7 @@ sudo journalctl -u filamentbox.service -f
 **Diagnosis**:
 ```bash
 # Check service status
-sudo systemctl status filamentbox-webui.service
+sudo systemctl status filamentbox.service (v2.0+ - webui integrated)
 
 # Check if port is listening
 sudo netstat -tlnp | grep 5000
@@ -1222,7 +1185,7 @@ sudo ufw status
 **Solutions**:
 ```bash
 # Ensure service is running
-sudo systemctl start filamentbox-webui.service
+sudo systemctl start filamentbox.service (v2.0+ - webui integrated)
 
 # Check Flask dependencies
 source filamentcontrol/bin/activate
@@ -1454,24 +1417,24 @@ sudo tcpdump -i any port 8086 -A
 
 ```bash
 # Stop and disable services
-sudo systemctl stop filamentbox-webui.service
+sudo systemctl stop filamentbox.service (v2.0+ - webui integrated)
 sudo systemctl stop filamentbox.service
-sudo systemctl disable filamentbox-webui.service
+sudo systemctl disable filamentbox.service (v2.0+ - webui integrated)
 sudo systemctl disable filamentbox.service
 
 # Remove service files
 sudo rm /etc/systemd/system/filamentbox.service
-sudo rm /etc/systemd/system/filamentbox-webui.service
+sudo rm /etc/systemd/system/filamentbox.service (v2.0+ - webui integrated)
 
 # Reload systemd
 sudo systemctl daemon-reload
 sudo systemctl reset-failed
 
 # Remove nginx configuration
-sudo rm /etc/nginx/sites-enabled/filamentbox-webui
-sudo rm /etc/nginx/sites-available/filamentbox-webui
+sudo rm /etc/nginx/sites-enabled/filamentbox
+sudo rm /etc/nginx/sites-available/filamentbox
 # Or for Docker nginx:
-sudo rm /etc/nginx/conf.d/filamentbox-webui.conf
+sudo rm /etc/nginx/conf.d/filamentbox.conf
 sudo systemctl reload nginx
 
 # Remove installation directory
@@ -1510,15 +1473,15 @@ Remove only web UI but keep main application:
 
 ```bash
 # Stop and disable web UI service
-sudo systemctl stop filamentbox-webui.service
-sudo systemctl disable filamentbox-webui.service
+sudo systemctl stop filamentbox.service (v2.0+ - webui integrated)
+sudo systemctl disable filamentbox.service (v2.0+ - webui integrated)
 
 # Remove service file
-sudo rm /etc/systemd/system/filamentbox-webui.service
+sudo rm /etc/systemd/system/filamentbox.service (v2.0+ - webui integrated)
 
 # Remove nginx configuration
-sudo rm /etc/nginx/sites-enabled/filamentbox-webui
-sudo rm /etc/nginx/sites-available/filamentbox-webui
+sudo rm /etc/nginx/sites-enabled/filamentbox
+sudo rm /etc/nginx/sites-available/filamentbox
 sudo systemctl reload nginx
 
 # Reload systemd
