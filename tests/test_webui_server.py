@@ -1,8 +1,6 @@
 """Unit tests for the webui_server Flask application."""
 
 import json
-import sys
-import os
 from datetime import datetime
 from typing import Any, Dict, Generator
 from unittest.mock import patch
@@ -10,16 +8,7 @@ from unittest.mock import patch
 import pytest
 from flask.testing import FlaskClient
 
-# Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-# Mock config loading before importing webui_server
-with (
-    patch("filamentbox.config._ensure_config_loaded"),
-    patch("filamentbox.config.get", return_value=True),
-):
-    # Import the Flask app
-    from webui.webui_server import app
+from webui.webui_server import app
 
 
 @pytest.fixture
