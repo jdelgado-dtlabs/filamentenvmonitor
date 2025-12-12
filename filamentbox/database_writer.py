@@ -25,7 +25,8 @@ from .persistence import persist_batch
 from .shared_state import update_database_status
 
 # Configuration with sensible defaults for missing keys
-DATA_COLLECTION_ENABLED = get("data_collection.enabled", True)  # Default: enabled
+# Use `database.enabled` to control whether the database writer runs
+DATABASE_ENABLED = get("database.enabled", True)  # Default: enabled
 DB_TYPE = get("database.type", "none")  # Default: no database (sensor-only mode)
 BATCH_SIZE = get("database.batch_size", 10)
 FLUSH_INTERVAL = get("database.flush_interval", 60)
@@ -123,11 +124,11 @@ def enqueue_data_point(data_point: dict[str, Any]) -> None:
     """Enqueue single measurement dict for a later batched write.
 
     Drops oldest item if queue is full to prioritize fresh data.
-    When data collection is disabled, data points are silently discarded.
+    When the database writer is disabled, data points are silently discarded.
     When database is 'none', data points are accepted but not persisted.
     """
-    if not DATA_COLLECTION_ENABLED:
-        logging.debug("Data collection disabled, discarding data point")
+    if not DATABASE_ENABLED:
+        logging.debug("Database writer disabled, discarding data point")
         return
 
     try:
@@ -157,8 +158,8 @@ def database_writer(stop_event: Optional[threading.Event] = None) -> None:
     backoff with jitter, persistence of unsent batches on alert condition, and
     optional external alert callback.
     """
-    if not DATA_COLLECTION_ENABLED:
-        logging.info("Data collection is disabled - database writer thread will not start")
+    if not DATABASE_ENABLED:
+        logging.info("Database writer is disabled - database writer thread will not start")
         update_database_status(DB_TYPE, False, False)
         return
 
@@ -167,7 +168,7 @@ def database_writer(stop_event: Optional[threading.Event] = None) -> None:
         stop_event = threading.Event()
 
     # Initialize database status
-    update_database_status(DB_TYPE, True, True)
+    update_database_status(DB_TYPE, DATABASE_ENABLED, True)
 
     # Get database-specific configuration
     db_config = get_database_config(DB_TYPE)
@@ -214,13 +215,13 @@ def database_writer(stop_event: Optional[threading.Event] = None) -> None:
                     if was_in_failure_state:
                         notify_success("✓ Database connection restored")
                     # Update database status with successful write
-                    update_database_status(DB_TYPE, True, True, current_time, 0)
+                    update_database_status(DB_TYPE, DATABASE_ENABLED, True, current_time, 0)
                 except Exception as e:
                     # Increment failure counter and log the exception
                     failure_count += 1
                     logging.exception(f"Error writing to {DB_TYPE}: {e}")
                     # Update database status with failure count
-                    update_database_status(DB_TYPE, True, True, None, failure_count)
+                    update_database_status(DB_TYPE, DATABASE_ENABLED, True, None, failure_count)
                     # If failures exceed threshold, emit a persistent error
                     if failure_count >= ALERT_FAILURE_THRESHOLD and not alerted:
                         logging.error(
@@ -253,7 +254,7 @@ def database_writer(stop_event: Optional[threading.Event] = None) -> None:
         logging.exception("Error closing database adapter")
 
     # Update status to indicate writer has stopped
-    update_database_status(DB_TYPE, DATA_COLLECTION_ENABLED, False)
+    update_database_status(DB_TYPE, DATABASE_ENABLED, False)
 
     logging.debug(f"Database writer thread ({DB_TYPE}) exiting.")
 

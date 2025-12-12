@@ -174,14 +174,14 @@ def recover_persisted_batches() -> None:
         db_type = get("database.type")
         db_config = get_database_config(db_type)
 
-        if get("data_collection.enabled") and db_type != "none":
+        if get("database.enabled") and db_type != "none":
             db_adapter = create_database_adapter(db_type, db_config)
             success, failure = load_and_flush_persisted_batches(db_adapter)
             logging.info(f"Persisted batch recovery: {success} flushed, {failure} failed/pending")
             db_adapter.close()
         else:
             logging.info(
-                "Data collection disabled or database type is 'none' - skipping persistence recovery"
+                "Database disabled or database type is 'none' - skipping persistence recovery"
             )
     except Exception as e:
         logging.exception(f"Error during persisted batch recovery: {e}")

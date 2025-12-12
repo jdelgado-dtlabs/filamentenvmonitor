@@ -12,8 +12,7 @@ export function DatabaseCard({ dbStatus, threads, config, onMessage, onUpdate })
   const dbThread = threads?.database_writer || {};
   const dbType = dbStatus?.type === 'none' ? 'None' : 
     dbStatus?.type?.charAt(0).toUpperCase() + dbStatus?.type?.slice(1);
-  // Use 'data_collection.enabled' which controls whether the writer runs
-  const enabled = config?.['data_collection.enabled']?.value ?? true;
+  const enabled = config?.['database.enabled']?.value ?? true;
 
   const handleRestart = async () => {
     try {
@@ -34,7 +33,7 @@ export function DatabaseCard({ dbStatus, threads, config, onMessage, onUpdate })
               ⚙️ Config
             </Button>
             <EnableDisableButton
-              configKey="data_collection.enabled"
+              configKey="database.enabled"
               currentValue={enabled}
               onMessage={onMessage}
               onUpdate={onUpdate}

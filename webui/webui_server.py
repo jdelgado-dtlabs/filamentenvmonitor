@@ -264,8 +264,13 @@ def get_config_value(key: str) -> Union[Response, Tuple[Response, int]]:
         JSON with value, description, type, and validation info.
     """
     try:
-        value = get(key)
+        # Return the schema-backed config value. Do not alias keys here;
+        # `database.enabled` must be defined in the schema to be supported.
         key_info = get_key_info(key)
+        if not key_info:
+            return jsonify({"error": f"Unknown configuration key: {key}"}), 404
+
+        value = get(key)
 
         return jsonify(
             {
@@ -304,8 +309,10 @@ def set_config_value(key: str) -> Union[Response, Tuple[Response, int]]:
             return jsonify({"error": "Missing 'value' in request body"}), 400
 
         new_value = data["value"]
-        key_info = get_key_info(key)
 
+        # Require schema-backed keys only; do not alias keys. The schema must
+        # include `database.enabled` if clients are expected to read/write it.
+        key_info = get_key_info(key)
         if not key_info:
             return jsonify({"error": f"Unknown configuration key: {key}"}), 400
 
@@ -315,7 +322,7 @@ def set_config_value(key: str) -> Union[Response, Tuple[Response, int]]:
         if not is_valid:
             return jsonify({"error": error_message, "valid": False}), 400
 
-        # Save to database
+        # Save to database using the requested key
         db = ConfigDB()
         try:
             description = key_info.get("desc", "")

@@ -11,6 +11,11 @@ from typing import Any
 # Configuration schema: defines allowed configuration keys
 CONFIG_SCHEMA = {
     "database": {
+        "enabled": {
+            "type": "bool",
+            "desc": "Enable database writes (database writer thread)",
+            "default": True,
+        },
         "type": {
             "type": "str",
             "desc": "Active database backend (only one can be active at a time)",
