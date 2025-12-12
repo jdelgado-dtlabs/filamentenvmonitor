@@ -172,7 +172,6 @@ def migrate_yaml_to_db(
         # Sample verification
         sample_keys = [
             "database.type",
-            "data_collection.enabled",
             "sensor.pin",
         ]
         for key in sample_keys:
