@@ -41,7 +41,7 @@ export function SettingsEditor({ onClose, onMessage, onSave, useFahrenheit, setU
       const dbVisibleConfig = await api.getConfig('ui.show_database_card');
       const heaterVisibleConfig = await api.getConfig('ui.show_heater_card');
       const fanVisibleConfig = await api.getConfig('ui.show_fan_card');
-      const dbEnabledConfig = await api.getConfig('database.enabled');
+      const dbEnabledConfig = await api.getConfig('data_collection.enabled');
       const heaterEnabledConfig = await api.getConfig('heating_control.enabled');
       const fanEnabledConfig = await api.getConfig('humidity_control.enabled');
 
